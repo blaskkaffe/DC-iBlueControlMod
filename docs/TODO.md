@@ -1,26 +1,30 @@
 # To do
 
-Left out of the test firmware on purpose, to come later:
+Order of the day: **organise and restructure first** (one branch, one place for the iBlue code, one implementation of each feature, one set of docs; see "Restructure"), then the items below. Reviewed with the owner 2026-11-01. What exists and how far it got: [FEATURES.md](FEATURES.md).
 
-- **brctl**: the control channel over the Maple bus (status, config read and write, LED and pairing control, remappable gestures; it is on `development`). When it comes back, the game id mailbox in the VMU (`system/iblue_gameid.c`) should move into it: one channel instead of two.
-- **Hotkeys and profiles**: Home + a face button to switch between saved controller profiles; the profile slots and per-game settings from openMenu (written on `claude/restructure`).
-- **The openMenu Controllers screen** (remapping, type, rumble, VMU, per-button settings): on `claude/iblue-controllers` in openMenu-Virtual-Folder-Bundle; it needs brctl.
+## Restructure (in progress on `claude/integration`)
+- One integration branch from `main` with the current test firmware work (`claude/test-fw`), the web config and, later, `claude/restructure` (the layout, `brctl`).
+- All fork-specific firmware in `main/iblue/` with one Kconfig menu; the upstream files keep one-line hooks.
+- One implementation of each feature: whole-configuration profiles, tap actions and the VMU game id from the test firmware stay; `brctl` is kept for openMenu and has to be ported onto them (two profile formats and two gesture tables exist today).
+- Web page cleanup; one set of docs; test builds are not committed to `main`.
+- Check before anything goes to `main`: every config builds (hw1, hw2, iblue), the host tests and the web tests pass.
+
+## Features to add (after the restructure)
+- **Customizable Home + key combos** (replaces "Home + arrows" and the fixed Home + face button). Holding Home on a controller and pressing a second button runs an action the user chose for that button, on the controller it is pressed on, and the second button is hidden from the game. Buttons that can be set: the four d-pad arrows and the four face buttons (the 8 "face buttons"), Start, Select, L1, L2, L3, R1, R2, R3, and the left and right half of the touchpad on DualShock and DualSense. Actions: rumble on/off, next controller type or a chosen one (GamePad, GamePadAlt, Racing), profile 1 to 4 or next, game id on/off, next colour, disconnect, later network switch. A table on the web page; saved in the adapter. Needs: a hotkey engine on the Bluetooth input (the one on `claude/restructure` is the start), and for the touchpad halves the touch position from the DS4/DS5 report (BlueRetro only passes the touchpad click as one button).
+- **Tap actions**: the list of actions and their settings need changes (to be listed with the owner).
+- **LED colours by network** (DCNow! / DCNET) and a button to switch networks: needs the control channel (`brctl`).
+- **Samba de Amigo maracas**: concept in [samba-de-amigo.md](samba-de-amigo.md).
+- **Panther mode** (`0x003FFFFF` with the name "Dreamcast PantherDC Controller") and the full device info reply (command 6, with the version string some games need): later, owner's call.
+
+## Fixes and checks
+- **Test**: brightness of a connected controller (20 %), the animation settings, the fireworks intro, the start-up order, game id with openMenu, Racing mode, `brctl`.
 - **A better factory reset**: the 10 s hold is too easy to trigger. Per-game configurations are already kept through it.
-- **Measure the BIOS boot animation** on a real console and set the length of the animation on the web config (LED settings; default 15 s) and check the 700 ms of adapter start-up (`BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS`).
-- **Code layout**: the iBlue code in one folder with one Kconfig menu (done on `claude/restructure`); bring the LED work onto it.
-- **Plain HW1/HW2 builds** with these features (`dreamcast_openmenu` configs exist on `claude/restructure`).
-- **Docs**: remove the `iblue-v1.9` branch text from `docs/README_iBlueControlMod.md` (no such branch on GitHub, and no 1.9 firmware is shipped).
-- A port D (or any port) that is always there but not a controller, so the adapter can be reached with no Bluetooth controller (discussed, skipped).
+- **Measure the BIOS boot animation** on a real console and set the length of the animation on the web config (LED settings; default 15 s); check the 700 ms of adapter start-up (`BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS`).
+- **Plain HW1/HW2 builds** with these features (`dreamcast_openmenu` configs on `claude/restructure`): kept for now.
+- Hide the blue flash of the power LED at power-on: it is the chip's, before the firmware runs; acceptable for now.
 
-## Status after the web config
-- Tap actions: single and triple tap default to nothing; every tap can be mapped in the hosted web config (`web/`, iblue.html).
-- Whole-config profiles (4 slots) are saved/loaded from the web config over BLE. Still TODO: switching profiles with a controller hotkey or from openMenu.
+## Dropped
+- A port D (or any port) that is always there but not a controller.
 
-## Status after the web config
-- Tap actions: single and triple tap default to nothing; every tap can be mapped in the hosted web config (`web/`, iblue.html).
-- Whole-config profiles (4 slots) are saved/loaded from the web config over BLE. Still TODO: switching profiles with a controller hotkey or from openMenu.
-
-## Samba de Amigo maracas (research, nothing built)
-What dreamcast.wiki/Maracas says (read 2026-10-30): the maracas implement the standard controller function (FT0). Per maraca (table read as left / right): position = analog axis A / analog axis B, shake = button B / A, extra button = C / Start, "connection loss" signal = D / Z. After a reset the ultrasonic timing adjustment runs for 4 / 5 / 6 / 7 s on port A / B / C / D (240 / 300 / 360 / 420 Get Condition queries): buttons are disabled, positions stay fixed and the connection loss signal is active.
-Flycast (PR 1035) emulates them with the two gamepad thumbsticks on axis slots 2 to 5 (centre 0x80, 0 to 0xFF), without the SetCondition ultrasonic settings (Samba sets an analog update interval of 2); issue 681 talks of four axes, two per maraca, which the wiki does not say.
-Not known yet: the function data word and product name the console expects, which analog slots "A" and "B" are, the value range for high / middle / low. Needs: that information (or a capture from real maracas), a motion input path (Wii remote accelerometer, Joy-Con IMU: BlueRetro reads neither today), tilt to axis conversion, shake detection, an output mode, per-game selection through the game id.
+## Done
+- The `iblue-v1.9` text is out of `docs/README_iBlueControlMod.md`.
