@@ -29,6 +29,27 @@ index: index.html
     <button id="btnGestureSave">Save tap buttons</button> <span id="gestureStatus"></span>
 </div>
 
+<div id="divLeds" style="display:none;margin-bottom:1em;">
+    <h2 style="margin:0">Port LEDs and the boot animation</h2>
+    <p>The four port LEDs of the Dreamcast play the boot animation (fireworks, then drops falling on water) and show
+    a connected controller. Everything here is saved in the adapter. <b>Save and play</b> runs the whole animation
+    right away so you can see the setting.</p>
+    <div id="ledRows"></div>
+    <div>
+        <canvas id="ledTank" width="640" height="90" style="max-width:100%;background:#1c1c1c;"></canvas><br>
+        <small>The tank from above: the walls, and where the four LEDs (A to D) sit in the water.</small>
+    </div>
+    <div style="margin-top:0.6em">
+        <canvas id="ledCurve" width="640" height="160" style="max-width:100%;background:#1c1c1c;"></canvas><br>
+        <small>General brightness of the water over the drops (the water level curve, times the depth).</small>
+    </div>
+    <p>
+        <button id="btnLedSave">Save and play</button>
+        <button id="btnLedDefaults">Defaults</button>
+        <span id="ledStatus"></span>
+    </p>
+</div>
+
 <div id="divProfiles" style="display:none;margin-bottom:1em;">
     <h2 style="margin:0">Profiles</h2>
     <p>A profile is a copy of the <b>whole</b> configuration: the mapping, output mode and accessories of every output,

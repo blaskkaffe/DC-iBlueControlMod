@@ -8,6 +8,7 @@ import { getGameName } from './utils/getGameName.js';
 import { getCfgSrc } from './utils/getCfgSrc.js';
 import { setDefaultCfg } from './utils/setDefaultCfg.js';
 import { setGameIdCfg } from './utils/setGameIdCfg.js';
+import { isDcOnly } from './utils/dcOnly.js';
 
 var presets = new Array();
 var bluetoothDevice;
@@ -146,6 +147,9 @@ function initBlueRetroCfg() {
         return fetchMap(presets, files, 0);
     })
     .then(_ => {
+        if (isDcOnly()) {
+            presets = presets.filter(p => p.console == 'DC' || p.console == 'Default');
+        }
         initInputSelect();
         initOutputMapping();
         pageInit = 1;

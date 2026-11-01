@@ -5,6 +5,7 @@ iBlueControlMod firmware has:
 
 - `iblue.html`: map single / double / triple tap to an action, and save / load / delete 4 whole-config profiles
   (BLE commands 0x40-0x46, `main/bluetooth/att_cfg.c`). Other firmwares answer with a clear message instead.
+- `iblue.html` also has **Port LEDs and the boot animation**: brightness of a connected controller's LED, the length of the boot animation and the water of the drops animation (LED distance, density, length between the walls, LED group position, depth, water level curve), with a preview of the tank and the curve and **Save and play**. BLE commands 0x47 to 0x4A; the table of settings (`utils/ibluAnim.js`) is the same as `struct iblue_anim_cfg` in the firmware, a test compares them.
 - `ota.html`: besides the file picker, a list of firmwares from this GitHub repo (`firmware-sources.json`).
   The baseline (`firmware/BlueRetro_iBlueControlMod_RGB_v1.bin` on main) is listed first and preselected; each download is
   checked against the folder's `SHA256SUMS.txt` before it is sent.

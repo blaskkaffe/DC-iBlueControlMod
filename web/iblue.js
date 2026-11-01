@@ -4,8 +4,9 @@ import { brUuid, cfg_cmd_get_fw_name, ibluGestureNames, ibluActionNames, ibluPro
 import { getStringCmd } from './utils/getStringCmd.js';
 import { getAppVersion } from './utils/getAppVersion.js';
 import { getBdAddr } from './utils/getBdAddr.js';
-import { getIblueInfo, getGestures, setGestures, getProfile, saveProfile, loadProfile, deleteProfile }
-    from './utils/iblueCmd.js';
+import { getIblueInfo, getGestures, setGestures, getProfile, saveProfile, loadProfile, deleteProfile,
+    getAnimCfg, setAnimCfg, resetAnimCfg, playAnim } from './utils/iblueCmd.js';
+import { ibluAnimFields, ibluAnimDefaults, ibluAnimClamp, ibluAnimLevel, ibluAnimTank } from './utils/ibluAnim.js';
 
 let brService = null;
 let info = null;
@@ -19,7 +20,7 @@ function show(ids, visible) {
 function onDisconnected() {
     log('> Bluetooth Device disconnected');
     show(['divBtConn'], true);
-    show(['divInfo', 'divGestures', 'divProfiles'], false);
+    show(['divInfo', 'divGestures', 'divLeds', 'divProfiles'], false);
 }
 
 function say(id, text) {
@@ -67,6 +68,150 @@ async function saveGestures() {
     }
     catch (error) {
         say('gestureStatus', 'Argh! ' + error);
+    }
+}
+
+/* ---- Port LEDs and the boot animation ------------------------------------------------------- */
+
+function ledValues() {
+    return ibluAnimFields.map((f) => Number($('led_' + f.key).value));
+}
+
+function drawLeds() {
+    const values = ibluAnimClamp(ledValues());
+    const tank = $('ledTank').getContext('2d');
+    const w = $('ledTank').width;
+    const h = $('ledTank').height;
+    const geo = ibluAnimTank(values);
+    const pad = 30;
+    const scale = (w - 2 * pad) / geo.width;
+
+    tank.clearRect(0, 0, w, h);
+    tank.strokeStyle = '#7ab';
+    tank.lineWidth = 3;
+    tank.beginPath();
+    tank.moveTo(pad, 10); tank.lineTo(pad, h - 10);
+    tank.moveTo(w - pad, 10); tank.lineTo(w - pad, h - 10);
+    tank.stroke();
+    tank.fillStyle = 'rgba(60,110,200,0.35)';
+    tank.fillRect(pad, 18, w - 2 * pad, h - 36);
+    geo.leds.forEach((x, i) => {
+        tank.fillStyle = '#6af';
+        tank.beginPath();
+        tank.arc(pad + x * scale, h / 2, 9, 0, 2 * Math.PI);
+        tank.fill();
+        tank.fillStyle = '#fff';
+        tank.font = '12px sans-serif';
+        tank.textAlign = 'center';
+        tank.fillText('ABCD'[i], pad + x * scale, h / 2 + 4);
+    });
+
+    const curve = $('ledCurve').getContext('2d');
+    const cw = $('ledCurve').width;
+    const ch = $('ledCurve').height;
+
+    curve.clearRect(0, 0, cw, ch);
+    curve.strokeStyle = '#444';
+    curve.lineWidth = 1;
+    for (let g = 0; g <= 4; g++) {
+        curve.beginPath();
+        curve.moveTo(30, 10 + (ch - 30) * g / 4); curve.lineTo(cw - 10, 10 + (ch - 30) * g / 4);
+        curve.stroke();
+    }
+    curve.strokeStyle = '#6af';
+    curve.lineWidth = 2;
+    curve.beginPath();
+    for (let i = 0; i <= 200; i++) {
+        const u = i / 200;
+        const x = 30 + u * (cw - 40);
+        const y = 10 + (ch - 30) * (1 - ibluAnimLevel(values, u));
+        if (i === 0) { curve.moveTo(x, y); } else { curve.lineTo(x, y); }
+    }
+    curve.stroke();
+    curve.fillStyle = '#999';
+    curve.font = '11px sans-serif';
+    curve.textAlign = 'left';
+    curve.fillText('0 %', 2, ch - 18);
+    curve.fillText('100 %', 0, 20);
+    curve.textAlign = 'center';
+    curve.fillText('start of the drops', 90, ch - 4);
+    curve.fillText('end', cw - 20, ch - 4);
+}
+
+function setLedValues(values) {
+    ibluAnimFields.forEach((f, i) => {
+        $('led_' + f.key).value = values[i];
+        $('led_' + f.key + '_n').value = values[i];
+    });
+    drawLeds();
+}
+
+function initLeds(values) {
+    const rows = $('ledRows');
+
+    rows.innerHTML = '';
+    ibluAnimFields.forEach((f, i) => {
+        const div = document.createElement('div');
+        div.style.margin = '0.4em 0';
+        const label = document.createElement('label');
+        label.textContent = f.label + ': ';
+        label.setAttribute('for', 'led_' + f.key + '_n');
+        label.style.display = 'inline-block';
+        label.style.minWidth = '17em';
+        const range = document.createElement('input');
+        range.type = 'range';
+        range.id = 'led_' + f.key;
+        range.min = f.min; range.max = f.max; range.step = f.step;
+        range.value = values[i];
+        const num = document.createElement('input');
+        num.type = 'number';
+        num.id = 'led_' + f.key + '_n';
+        num.min = f.min; num.max = f.max; num.step = f.step;
+        num.value = values[i];
+        num.style.width = '5.5em';
+        range.addEventListener('input', () => { num.value = range.value; drawLeds(); });
+        num.addEventListener('input', () => { range.value = num.value; drawLeds(); });
+        const unit = document.createElement('span');
+        unit.textContent = ' ' + f.unit;
+        div.appendChild(label); div.appendChild(range); div.appendChild(num); div.appendChild(unit);
+        if (f.hint) {
+            const hint = document.createElement('div');
+            hint.innerHTML = '<small></small>';
+            hint.firstChild.textContent = f.hint;
+            div.appendChild(hint);
+        }
+        rows.appendChild(div);
+    });
+    drawLeds();
+}
+
+async function saveLeds() {
+    try {
+        const values = ibluAnimClamp(ledValues());
+        const result = await setAnimCfg(brService, values);
+
+        if (result !== 0) {
+            say('ledStatus', ibluProfileResult[result] || 'Not saved.');
+            return;
+        }
+        setLedValues(await getAnimCfg(brService)); /* what the adapter kept */
+        await playAnim(brService);
+        say('ledStatus', 'Saved. Playing the animation.');
+    }
+    catch (error) {
+        say('ledStatus', 'Argh! ' + error);
+    }
+}
+
+async function defaultsLeds() {
+    try {
+        const result = await resetAnimCfg(brService);
+
+        setLedValues(result === 0 ? await getAnimCfg(brService) : ibluAnimDefaults());
+        say('ledStatus', result === 0 ? 'Back to the defaults (saved).' : 'Not saved.');
+    }
+    catch (error) {
+        say('ledStatus', 'Argh! ' + error);
     }
 }
 
@@ -206,6 +351,10 @@ export function btConn() {
             await initGestures();
             show(['divGestures'], true);
         }
+        if (info.animation) {
+            initLeds(await getAnimCfg(brService));
+            show(['divLeds'], true);
+        }
         if (info.profiles) {
             await refreshProfiles();
             show(['divProfiles'], true);
@@ -217,3 +366,5 @@ export function btConn() {
 }
 
 $('btnGestureSave').addEventListener('click', saveGestures);
+$('btnLedSave').addEventListener('click', saveLeds);
+$('btnLedDefaults').addEventListener('click', defaultsLeds);

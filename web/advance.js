@@ -14,6 +14,7 @@ import { getGameName } from './utils/getGameName.js';
 import { getCfgSrc } from './utils/getCfgSrc.js';
 import { setDefaultCfg } from './utils/setDefaultCfg.js';
 import { setGameIdCfg } from './utils/setGameIdCfg.js';
+import { isDcOnly, dcLabelIdx, dcSystemName } from './utils/dcOnly.js';
 
 var apiVersion = 0;
 var bluetoothDevice;
@@ -53,6 +54,9 @@ function initGlobalCfg() {
 
     var sel = document.createElement("select");
     for (var i = 0; i < systemCfg.length; i++) {
+        if (isDcOnly() && systemCfg[i] != 'Auto' && systemCfg[i] != dcSystemName) {
+            continue;
+        }
         var option  = document.createElement("option");
         option.value = i;
         option.text = systemCfg[i];
@@ -335,10 +339,17 @@ function initLabelSelect() {
 
     main = document.createElement("select");
     for (var i = 0; i < labelName.length; i++) {
+        if (isDcOnly() && i != 0 && i != dcLabelIdx) {
+            continue; /* the wired side is a Dreamcast */
+        }
         var option  = document.createElement("option");
         option.value = i;
         option.text = labelName[i];
         main.add(option);
+    }
+    if (isDcOnly()) {
+        destLabel = dcLabelIdx;
+        main.value = dcLabelIdx;
     }
     main.id = "dstLabel";
     main.addEventListener("change", changeDstLabel);
@@ -585,6 +596,9 @@ function initOutputMapping() {
     /* Dest */
     var dest = src.cloneNode(true);
     dest.setAttribute("class", "dest");
+    for (var i = 0; i < btnList.length; i++) {
+        dest.options[i].text = btnList[i][destLabel];
+    }
     dest.title = "This is the destination button/axis on the wired interface.";
     mappingElement.appendChild(dest);
 
@@ -705,7 +719,14 @@ function loadGlobalCfg() {
         })
         .then(value => {
             log('Global Config size: ' + value.byteLength);
-            document.getElementById("systemCfg").value = value.getUint8(0);
+            var sysSel = document.getElementById("systemCfg");
+            if (!sysSel.querySelector('option[value="' + value.getUint8(0) + '"]')) {
+                var keep = document.createElement("option"); /* what the firmware has, whatever the setting hides */
+                keep.value = value.getUint8(0);
+                keep.text = systemCfg[value.getUint8(0)] || ('System ' + value.getUint8(0));
+                sysSel.add(keep);
+            }
+            sysSel.value = value.getUint8(0);
             document.getElementById("multitapCfg").value = value.getUint8(1);
             if (apiVersion > 0) {
                 document.getElementById("inquiryMode").value = value.getUint8(2);

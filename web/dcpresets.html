@@ -1,0 +1,44 @@
+---
+feature_name: Dreamcast controller presets
+icon_url: icon.png
+index: index.html
+---
+
+{% include_relative _includes/intro.html %}
+
+<p>One click sets what the Dreamcast sees (the controller type) and the button mapping of one output. The mapping is
+BlueRetro's default one: <b>L1 = Z, R1 = C, L2 / R2 = the left / right trigger, left stick = stick, right stick = right
+stick</b> (types that have one), L3 / R3 do nothing and can be mapped on the Advance page.</p>
+
+<div id="divBtConn">
+    <button id="btConn">Connect BlueRetro</button><br>
+    <small><i>Disconnect all controllers from BlueRetro before connecting for configuration.</i></small>
+</div>
+<div id="divInfo" style="display:none;margin-bottom:1em;"></div>
+
+<div id="divDcPresets" style="display:none;margin-bottom:1em;">
+    <label for="dcOutput">Output: </label><select id="dcOutput"></select>
+    <div id="dcPresetRows" style="margin-top:1em;"></div>
+    <p id="dcPresetStatus"></p>
+    <div id="divDcGame" style="display:none;">
+        <h2 style="margin:0">Only for this game</h2>
+        <p id="dcGameText"></p>
+        <button id="btnDcGameSave">Save what the adapter runs now as the configuration of this game</button>
+        <span id="dcGameStatus"></span>
+    </div>
+</div>
+
+{% include output_helper.html %}
+
+<script type="module">
+  import { btConn } from './dcpresets.js';
+
+  document.getElementById("btConn").addEventListener('click', function() {
+    if (isWebBluetoothEnabled()) {
+      ChromeSamples.clearLog();
+      btConn();
+    }
+  });
+</script>
+
+{% include_relative _includes/utils.html %}
