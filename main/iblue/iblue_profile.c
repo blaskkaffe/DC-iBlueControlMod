@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "adapter/config.h"
-#include "system/iblue_profile.h"
+#include "iblue/iblue_profile.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 

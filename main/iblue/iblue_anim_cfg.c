@@ -2,7 +2,7 @@
 
 #include <string.h>
 #include <nvs.h>
-#include "system/iblue_anim_cfg.h"
+#include "iblue/iblue_anim_cfg.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 

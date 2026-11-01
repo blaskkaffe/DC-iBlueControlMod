@@ -17,7 +17,7 @@
 #include "system/delay.h"
 #include "system/gpio.h"
 #include "system/intr.h"
-#include "system/iblue_gameid.h"
+#include "iblue/iblue_gameid.h"
 #include "maple.h"
 
 #define ID_CTRL    0x00000001

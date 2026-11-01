@@ -1,7 +1,7 @@
 /* iBlueControlMod: boot animation maths (water ripples). See iblue_anim_curve.h. */
 
 #include <math.h>
-#include "system/iblue_anim_curve.h"
+#include "iblue/iblue_anim_curve.h"
 
 #define GAMMA 2.2f          /* LED brightness is not linear in duty */
 #define WIDTH_DEFAULT 4.0f  /* the tank of the default settings: LED i sits at i + 0.5, the walls at 0 and 4 */

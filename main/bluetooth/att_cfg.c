@@ -20,10 +20,10 @@
 #include "system/manager.h"
 #include "system/fs.h"
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
-#include "system/iblue_gesture.h"
-#include "system/iblue_anim_cfg.h"
-#include "system/iblue_port_led.h"
-#include "system/iblue_profile.h"
+#include "iblue/iblue_gesture.h"
+#include "iblue/iblue_anim_cfg.h"
+#include "iblue/iblue_port_led.h"
+#include "iblue/iblue_profile.h"
 #endif
 
 #define ATT_MAX_LEN 512

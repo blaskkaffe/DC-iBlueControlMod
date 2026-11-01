@@ -1,6 +1,6 @@
 /* iBlueControlMod: tap counting. See iblue_tap.h. */
 
-#include "system/iblue_tap.h"
+#include "iblue/iblue_tap.h"
 
 enum { PH_GAP = 0, PH_PRESS, PH_HOLD };
 

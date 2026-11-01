@@ -3,7 +3,7 @@
 #include <string.h>
 #include <esp_attr.h>
 #include "adapter/adapter.h"
-#include "system/iblue_gameid.h"
+#include "iblue/iblue_gameid.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
 

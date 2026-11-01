@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "sdkconfig.h"
-#include "system/iblue_anim_curve.h"
+#include "iblue/iblue_anim_curve.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 

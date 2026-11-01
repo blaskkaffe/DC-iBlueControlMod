@@ -2,8 +2,8 @@
 
 #include <stdio.h>
 #include <nvs.h>
-#include "system/iblue_gameid.h"
-#include "system/iblue_gameid_ctl.h"
+#include "iblue/iblue_gameid.h"
+#include "iblue/iblue_gameid_ctl.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
 

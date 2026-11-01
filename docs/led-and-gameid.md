@@ -35,7 +35,7 @@ BlueRetro can keep one configuration per game: it learns the game's id from the 
 
 How to use it: start a game from openMenu (with the openMenu build that has the game id writer), open blueretro.io, connect, and the game id is shown; change the mapping and save it as a game configuration. The next time you start the game from openMenu it is loaded. Game configurations (`DC_*` files) **survive the factory reset**.
 
-Block layout, the checks and the limits are in `main/system/iblue_gameid.h`. `sh main/tests/host/run.sh` tests the block handling on a PC (valid and invalid requests, half a write, a game formatting the card).
+Block layout, the checks and the limits are in `main/iblue/iblue_gameid.h`. `sh main/tests/host/run.sh` tests the block handling on a PC (valid and invalid requests, half a write, a game formatting the card).
 
 Needs: a Bluetooth controller connected (the board only answers on a port that has one) and the **VMU accessory on** for that port. A new configuration has the VMU on for port A; an existing configuration with the VMU off has to switch it on in blueretro.io once.
 

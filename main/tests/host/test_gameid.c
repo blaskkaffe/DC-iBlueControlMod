@@ -1,8 +1,8 @@
-/* Host test of the Dreamcast game id mailbox (system/iblue_gameid.c, with stubs): see run.sh */
+/* Host test of the Dreamcast game id mailbox (iblue/iblue_gameid.c, with stubs): see run.sh */
 #include <stdio.h>
 #include <string.h>
 #include "adapter/adapter.h"
-#include "system/iblue_gameid.h"
+#include "iblue/iblue_gameid.h"
 
 static int fails, checks;
 #define CHECK(c) do { checks++; if (!(c)) { fails++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)

@@ -1,13 +1,13 @@
 /* Prints what the port LEDs do from the moment the LED code starts: the intro and then the first seconds of the
- * drops, the way system/iblue_port_led.c plays them (the LED task works in 20 ms frames, the drops are an
+ * drops, the way iblue/iblue_port_led.c plays them (the LED task works in 20 ms frames, the drops are an
  * animation of their own that starts when the intro is over and ends with the whole, brightness capped at the
  * LED_MAX_PCT).
  * One line per `step_ms`: "<ms> d0 d1 d2 d3" (PWM duty 0..1023).
- * cc -o anim_intro_frames anim_intro_frames.c ../../system/iblue_anim_curve.c -lm
+ * cc -o anim_intro_frames anim_intro_frames.c ../../iblue/iblue_anim_curve.c -lm
  * ./anim_intro_frames <total_ms> <start_ms> <show_ms> <step_ms> */
 #include <stdio.h>
 #include <stdlib.h>
-#include "../../system/iblue_anim_curve.h"
+#include "../../iblue/iblue_anim_curve.h"
 
 #define FRAME_MS 20
 #define MAX_PCT 80

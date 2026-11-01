@@ -7,9 +7,9 @@
 #include "driver/ledc.h"
 #include "esp_rom_gpio.h"
 #include "hal/ledc_hal.h"
-#include "system/iblue_anim_curve.h"
-#include "system/iblue_anim_cfg.h"
-#include "system/iblue_port_led.h"
+#include "iblue/iblue_anim_curve.h"
+#include "iblue/iblue_anim_cfg.h"
+#include "iblue/iblue_port_led.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 

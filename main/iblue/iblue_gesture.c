@@ -6,10 +6,10 @@
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "system/manager.h"
-#include "system/iblue_led.h"
-#include "system/iblue_profile.h"
-#include "system/iblue_gameid_ctl.h"
-#include "system/iblue_gesture.h"
+#include "iblue/iblue_led.h"
+#include "iblue/iblue_profile.h"
+#include "iblue/iblue_gameid_ctl.h"
+#include "iblue/iblue_gesture.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 

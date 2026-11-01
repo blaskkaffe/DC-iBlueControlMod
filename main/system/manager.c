@@ -31,12 +31,12 @@
 #include "esp_timer.h"
 #include <nvs_flash.h>
 #include <esp_timer.h>
-#include "system/iblue_led.h"
-#include "system/iblue_anim_cfg.h"
-#include "system/iblue_port_led.h"
-#include "system/iblue_gesture.h"
-#include "system/iblue_gameid_ctl.h"
-#include "system/iblue_tap.h"
+#include "iblue/iblue_led.h"
+#include "iblue/iblue_anim_cfg.h"
+#include "iblue/iblue_port_led.h"
+#include "iblue/iblue_gesture.h"
+#include "iblue/iblue_gameid_ctl.h"
+#include "iblue/iblue_tap.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*

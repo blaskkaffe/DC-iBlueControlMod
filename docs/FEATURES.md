@@ -3,7 +3,7 @@
 Status words: **seen** = tried on a real board (by the owner, mostly through videos); **built** = compiles in CI, not run; **branch** = written, on another branch, not in this build; **planned** = decided, not written; **dropped**.
 Everything below was last reviewed with the owner on 2026-11-01. Where something is only "built", nothing about it has been seen on hardware.
 
-## Firmware (ESP32, `main/`)
+## Firmware (ESP32, `main/`; the fork's own code is in `main/iblue/`, its options in `main/iblue/Kconfig.iblue`)
 
 | Feature | What it does | Code | Status |
 |---|---|---|---|
