@@ -156,7 +156,7 @@ async function open(browser, server, url, opts) {
     }
     {   // the table of the page is the table of the firmware, when its source is at hand
         const anim = await import(path.join(site, 'utils/ibluAnim.js'));
-        const cands = [process.env.IBLUE_C_SRC, path.join(__dirname, '../../main/system/iblue_anim_curve.c'), '/home/user/iBlueControlMod/main/system/iblue_anim_curve.c'].filter(Boolean);
+        const cands = [process.env.IBLUE_C_SRC, path.join(__dirname, '../../main/iblue/iblue_anim_curve.c'), '/home/user/iBlueControlMod/main/iblue/iblue_anim_curve.c'].filter(Boolean);
         const src = cands.find((f) => fs.existsSync(f) && /iblue_anim_cfg_default/.test(fs.readFileSync(f, 'utf8')));
         if (!src) {
             console.log('(firmware source not found: table check skipped)');

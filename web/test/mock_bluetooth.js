@@ -1,5 +1,5 @@
 // Injected into the page before it loads: a BlueRetro that answers like the iBlueControlMod firmware
-// (main/bluetooth/att_cfg.c, system/iblue_gesture.c, system/iblue_profile.c). window.__br is its state.
+// (main/bluetooth/att_cfg.c, iblue/iblue_gesture.c, iblue/iblue_profile.c). window.__br is its state.
 (function (uuids, opts) {
     const idx = (u) => uuids.indexOf(u);
     const br = window.__br = {

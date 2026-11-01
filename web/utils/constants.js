@@ -525,7 +525,7 @@ export const cfg_cmd_set_anim_cfg = 0x48;
 export const cfg_cmd_play_anim = 0x49;
 export const cfg_cmd_reset_anim_cfg = 0x4A;
 
-/* What a tap gesture can do: the numbers are what the firmware knows (system/iblue_gesture.h). */
+/* What a tap gesture can do: the numbers are what the firmware knows (iblue/iblue_gesture.h). */
 export const ibluGestureNames = ['Single tap', 'Double tap', 'Triple tap'];
 export const ibluActionNames = [
     'Nothing',

@@ -1,5 +1,5 @@
 // Settings of the boot animation and of the port LEDs of the iBlueControlMod firmware.
-// The table is the same as `struct iblue_anim_cfg` in main/system/iblue_anim_curve.h (order, defaults, ranges);
+// The table is the same as `struct iblue_anim_cfg` in main/iblue/iblue_anim_curve.h (order, defaults, ranges);
 // test/web_test.js compares the two when the firmware source is next to this folder.
 
 export const ibluAnimFields = [
