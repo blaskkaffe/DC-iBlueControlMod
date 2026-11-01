@@ -1,0 +1,17 @@
+encoding: utf-8
+# iBlueControlMod web config: the BlueRetro web config plus the iBlueControlMod page and a firmware picker.
+# Built with Jekyll (see web/README.md); published to GitHub Pages by .github/workflows/web.yml.
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - NOTICE.md
+  - test
+  - node_modules
+  - vendor
+defaults:
+  -
+    scope:
+      path: ""
+    values:
+      layout: "default"
