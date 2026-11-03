@@ -102,5 +102,5 @@
     const service = { async getCharacteristic(uuid) { return chrc(idx(uuid)); } };
     const server = { async getPrimaryService() { return service; } };
     const device = { name: 'BlueRetro', addEventListener() {}, gatt: { connect: async () => server } };
-    Object.defineProperty(navigator, 'bluetooth', { value: { requestDevice: async () => device }, configurable: true });
+    Object.defineProperty(navigator, 'bluetooth', { value: { requestDevice: async () => { window.__requests = (window.__requests || 0) + 1; return device; } }, configurable: true });
 })(window.__uuids, window.__opts);

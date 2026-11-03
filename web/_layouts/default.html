@@ -44,7 +44,13 @@ limitations under the License.
     {% else %}
     <link rel="icon" href="{{ relative_path_to_root }}images/favicon.ico">
     {% endif %}
+    <script>
+      /* Inside the app page (index.html) the page is shown without its own heading and menu (?embed=1) */
+      if (new URLSearchParams(location.search).has('embed')) { document.documentElement.classList.add('embed'); }
+    </script>
     <link rel="stylesheet" href="{{ relative_path_to_root }}styles/main.css">
+    <link rel="stylesheet" href="{{ relative_path_to_root }}styles/app.css">
+    <link rel="stylesheet" href="{{ relative_path_to_root }}styles/embed.css">
     {% for local_css_file in page.local_css_files %}<link rel="stylesheet" href="{{ local_css_file }}">{% endfor %}
     {% if page.additional_head_content %}{{ page.additional_head_content }}{% endif %}
   </head>
@@ -58,6 +64,17 @@ limitations under the License.
       <a target="_blank" href="https://github.com/darthcloud/BlueRetro">BlueRetro on GitHub</a>
     </p>
     {{ content }}
+    <script>
+      /* In the app page: connect at once with the connection of the app, without a click */
+      window.addEventListener('load', function() {
+        try {
+          var b = document.getElementById('btConn');
+          if (document.documentElement.classList.contains('embed') && window.parent.iblueConn && window.parent.iblueConn.service && b) {
+            b.click();
+          }
+        } catch (e) { /* not embedded */ }
+      });
+    </script>
     {% for local_js_file in page.local_js_files %}<script src="{{ local_js_file }}"></script>{% endfor %}
   </body>
 </html>

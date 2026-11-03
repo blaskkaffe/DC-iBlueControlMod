@@ -1,5 +1,6 @@
 // Base on https://www.html5rocks.com/en/tutorials/file/dndfiles//
 
+import { connectBlueRetro } from './utils/connection.js';
 import { brUuid, cfg_cmd_get_file, cfg_cmd_open_dir, cfg_cmd_close_dir, cfg_cmd_del_file } from './utils/constants.js';
 import { getLatestRelease } from './utils/getLatestRelease.js';
 import { getAppVersion } from './utils/getAppVersion.js';
@@ -145,21 +146,9 @@ export function setFactoryResetEvent() {
 
 export function btConn() {
     log('Requesting Bluetooth Device...');
-    navigator.bluetooth.requestDevice(
-        {filters: [{namePrefix: 'BlueRetro'}],
-        optionalServices: [brUuid[0]]})
-    .then(device => {
-        log('Connecting to GATT Server...');
-        log('Device name: ' + device.name);
-        log('Device id: ' + device.id);
+    connectBlueRetro(onDisconnected, (device) => {
         name = device.name;
         bluetoothDevice = device;
-        bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
-        return bluetoothDevice.gatt.connect();
-    })
-    .then(server => {
-        log('Getting BlueRetro Service...');
-        return server.getPrimaryService(brUuid[0]);
     })
     .catch(error => {
         log(error.name);

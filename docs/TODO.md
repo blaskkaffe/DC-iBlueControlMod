@@ -6,7 +6,7 @@ Order of the day: **organise and restructure first** (one branch, one place for 
 - One integration branch from `main` with the current test firmware work (`claude/test-fw`), the web config and, later, `claude/restructure` (the layout, `brctl`).
 - All fork-specific firmware in `main/iblue/` with one Kconfig menu; the upstream files keep one-line hooks.
 - One implementation of each feature: whole-configuration profiles, tap actions and the VMU game id from the test firmware stay; `brctl` is kept for openMenu and has to be ported onto them (two profile formats and two gesture tables exist today).
-- Web page cleanup; one set of docs; test builds are not committed to `main`.
+- Web page: redesigned as one page with one connection (done, to be tried on the adapter); the BlueRetro pages inside it keep their own look for now; one set of docs; test builds are not committed to `main`.
 - Check before anything goes to `main`: every config builds (hw1, hw2, iblue), the host tests and the web tests pass.
 
 ## Features to add (after the restructure)

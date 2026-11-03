@@ -1,3 +1,4 @@
+import { connectBlueRetro } from './utils/connection.js';
 import { brUuid, maxMainInput } from './utils/constants.js';
 import { getLatestRelease } from './utils/getLatestRelease.js';
 import { getAppVersion } from './utils/getAppVersion.js';
@@ -240,19 +241,9 @@ function initCfgSelection() {
 
 export function btConn() {
     log('Requesting Bluetooth Device...');
-    navigator.bluetooth.requestDevice(
-        {filters: [{namePrefix: 'BlueRetro'}],
-        optionalServices: [brUuid[0]]})
-    .then(device => {
-        log('Connecting to GATT Server...');
+    connectBlueRetro(onDisconnected, (device) => {
         name = device.name;
         bluetoothDevice = device;
-        bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
-        return bluetoothDevice.gatt.connect();
-    })
-    .then(server => {
-        log('Getting BlueRetro Service...');
-        return server.getPrimaryService(brUuid[0]);
     })
     .catch(error => {
         log(error.name);

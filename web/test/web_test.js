@@ -8,6 +8,11 @@ const { chromium } = require('playwright');
 
 const site = path.resolve(process.argv[2] || '/tmp/site');
 let fails = 0, checks = 0;
+async function go(page, id) {
+    await page.click('#nav-' + id);
+    await page.waitForSelector('#p-' + id, { state: 'visible' });
+}
+
 function check(c, what) { checks++; if (!c) { fails++; console.log('FAIL: ' + what); } }
 
 function serve() {
@@ -78,13 +83,18 @@ async function open(browser, server, url, opts) {
     const browser = await chromium.launch();
     const iblue = { iblue: true, fwName: 'BlueRetro_dreamcast_iblue', fwVer: 'v25.10-beta-test' };
 
-    // ---- the iBlueControlMod page with an iBlueControlMod firmware
+    // ---- the app with an iBlueControlMod firmware: one connection, all categories
     {
-        const { page, errors } = await open(browser, server, 'iblue.html', iblue);
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        check((await page.$$('#nav > a')).length === 7, 'seven categories in the menu');
+        check(await page.isVisible('#p-device .gate'), 'before connecting, a prompt to connect');
         await page.click('#btConn');
-        await page.waitForSelector('#divGestures', { state: 'visible' });
-        const info = await page.textContent('#divInfo');
-        check(/iBlueControlMod features: tap buttons, profiles, game id/.test(info), 'info line shows the features: ' + info);
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        const info = await page.textContent('#deviceInfo');
+        check(/tap buttons, profiles, LED settings, game id/.test(info), 'the device card shows the features: ' + info);
+        check(await page.evaluate(() => window.__requests) === 1, 'one request for a device');
+        await go(page, 'buttons');
+        await page.waitForSelector('#gesture0', { state: 'visible' });
         check(await page.inputValue('#gesture0') === '0' && await page.inputValue('#gesture1') === '3' && await page.inputValue('#gesture2') === '0',
             'defaults: single tap nothing, double tap next colour, triple tap nothing');
         check((await page.$$('#gesture0 option')).length === 11, 'eleven actions to choose from');
@@ -94,7 +104,6 @@ async function open(browser, server, url, opts) {
         await page.waitForFunction(() => document.getElementById('gestureStatus').textContent === 'Saved.');
         check(JSON.stringify(await page.evaluate(() => window.__br.gestures)) === '[1,3,6]', 'the firmware got the new tap actions');
 
-        await page.waitForSelector('#divProfiles', { state: 'visible' });
         check((await page.$$('#profileRows > div')).length === 4, 'four profile slots');
         check(await page.isDisabled('#profileLoad0') && await page.isDisabled('#profileDelete0'), 'an empty slot cannot be loaded or deleted');
         await page.fill('#profileName1', 'Fighting');
@@ -106,7 +115,7 @@ async function open(browser, server, url, opts) {
         await page.waitForFunction(() => !document.getElementById('profileLoad2').disabled);
         check(await page.inputValue('#profileName2') === 'Profile 3', 'an empty name becomes Profile 3');
         await page.click('#profileLoad1');
-        await page.waitForFunction(() => document.getElementById('profileStatus').textContent.startsWith('Done: load'));
+        await page.waitForFunction(() => document.getElementById('profileStatus').textContent.startsWith('Loaded'));
         check(await page.evaluate(() => window.__br.loaded) === 1, 'profile 2 was loaded');
         await page.click('#profileDelete1');
         await page.waitForFunction(() => document.getElementById('profileLoad1').disabled);
@@ -119,10 +128,11 @@ async function open(browser, server, url, opts) {
     {
         const anim = await import(path.join(site, 'utils/ibluAnim.js'));
         const fields = anim.ibluAnimFields;
-        const { page, errors } = await open(browser, server, 'iblue.html', iblue);
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
         await page.click('#btConn');
-        await page.waitForSelector('#divLeds', { state: 'visible' });
-        check((await page.$$('#ledRows input[type=range]')).length === fields.length, 'a slider for each of the ' + fields.length + ' settings');
+        await go(page, 'leds');
+        await page.waitForSelector('#led_ctrl_pct', { state: 'visible' });
+        check((await page.$$('#p-leds input[type=range]')).length === fields.length, 'a slider for each of the ' + fields.length + ' settings');
         check(await page.inputValue('#led_ctrl_pct_n') === '20' && await page.inputValue('#led_total_s_n') === '15', 'the defaults of the adapter are shown: controller LED 20 %, 15 s');
         const painted = await page.evaluate(() => {
             const px = (id) => { const c = document.getElementById(id); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) { if (d[i] > 0) { n++; } } return n; };
@@ -172,11 +182,14 @@ async function open(browser, server, url, opts) {
 
     // ---- the same page with some other BlueRetro firmware
     {
-        const { page, errors } = await open(browser, server, 'iblue.html', { iblue: false, fwName: 'BlueRetro_hw1_dreamcast', fwVer: 'v25.10' });
+        const { page, errors } = await open(browser, server, 'index.html', { iblue: false, fwName: 'BlueRetro_hw1_dreamcast', fwVer: 'v25.10' });
         await page.click('#btConn');
-        await page.waitForSelector('#divInfo', { state: 'visible' });
-        await page.waitForFunction(() => /does not have/.test(document.getElementById('divInfo').textContent));
-        check(await page.isHidden('#divGestures') && await page.isHidden('#divProfiles'), 'no iBlue sections for another firmware');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        await go(page, 'buttons');
+        check(await page.isVisible('#p-buttons .nope') && await page.isHidden('#gesture0'), 'another firmware: a note instead of the iBlue settings');
+        await go(page, 'controllers');
+        check(await page.isVisible('#dcPreset0'), 'the controller presets still work on another firmware');
+        check(/none/.test(await page.textContent('#deviceInfo')), 'the device card says it has no iBlue features');
         check(errors.length === 0, 'no script errors with another firmware: ' + errors.join('; '));
         await page.context().close();
     }
@@ -226,21 +239,31 @@ async function open(browser, server, url, opts) {
     }
     {   // the list still shows when one source is missing: only main has files here (the others answer 404)
         const { page } = await open(browser, server, 'index.html', iblue);
-        const text = await page.textContent('body');
-        check(/iblue\.html/.test(await page.content()) && /tap buttons and profiles/.test(text), 'the index links to the iBlueControlMod page');
+        await page.click('#btConn');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        for (const id of ['device', 'leds', 'buttons', 'controllers', 'games', 'update', 'advanced']) {
+            await go(page, id);
+            check(await page.isVisible('#p-' + id), 'category ' + id + ' opens');
+        }
         await page.context().close();
     }
 
-    // ---- Dreamcast only setting (on by default)
+    // ---- Dreamcast only setting (on by default), in the device category
     for (const off of [false, true]) {
-        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        const { page } = await open(browser, server, 'index.html', iblue);
         if (off) { await page.evaluate(() => localStorage.setItem('iblueDcOnly', '0')); await page.reload(); }
-        const hidden = await page.isHidden('.notDc');
-        check(hidden === !off, 'N64 tools link ' + (off ? 'shown' : 'hidden') + ' when Dreamcast only is ' + (off ? 'off' : 'on'));
+        await page.click('#btConn');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        await go(page, 'advanced');
+        const hidden = await page.isHidden('#tab-advanced-4');
+        check(hidden === !off, 'N64 tab ' + (off ? 'shown' : 'hidden') + ' when Dreamcast only is ' + (off ? 'off' : 'on'));
+        await go(page, 'device');
         check(await page.isChecked('#dcOnly') === !off, 'the checkbox shows the setting');
         if (!off) {
             await page.uncheck('#dcOnly');
-            check(await page.evaluate(() => localStorage.getItem('iblueDcOnly')) === '0' && await page.isVisible('.notDc'), 'unchecking shows the other consoles again');
+            check(await page.evaluate(() => localStorage.getItem('iblueDcOnly')) === '0', 'unchecking keeps the setting');
+            await go(page, 'advanced');
+            check(await page.isVisible('#tab-advanced-4'), 'and shows the other consoles again');
         }
         await page.context().close();
     }
@@ -258,9 +281,10 @@ async function open(browser, server, url, opts) {
 
     // ---- Dreamcast controller presets
     {
-        const { page, errors } = await open(browser, server, 'dcpresets.html', iblue);
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
         await page.click('#btConn');
-        await page.waitForSelector('#divDcPresets', { state: 'visible' });
+        await go(page, 'controllers');
+        await page.waitForSelector('#dcPreset0', { state: 'visible' });
         check((await page.$$('#dcPresetRows button')).length === 5, 'five presets');
         await page.selectOption('#dcOutput', '1');
         await page.click('#dcPreset2'); // racing
@@ -274,8 +298,34 @@ async function open(browser, server, url, opts) {
         await page.waitForFunction(() => /Keyboard/.test(document.getElementById('dcPresetStatus').textContent));
         const w2 = await page.evaluate(() => window.__br.writes);
         check(w2.every((x) => x[0] === 2 || x[0] === 3) && w2.some((x) => x[0] === 3 && x[1][0] === 2), 'keyboard: only the output mode is written');
-        check(await page.isHidden('#divDcGame'), 'no game id, no per-game box');
+        await go(page, 'games');
+        await page.waitForFunction(() => /No game announced/.test(document.getElementById('dcGameText').textContent));
+        check(await page.isDisabled('#btnDcGameSave'), 'no game id, nothing to save for a game');
         check(errors.length === 0, 'no script errors on the Dreamcast presets page: ' + errors.join('; '));
+        await page.context().close();
+    }
+
+    // ---- one connection for the BlueRetro pages shown inside the app
+    {
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        await page.click('#btConn');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        await go(page, 'advanced');
+        await page.waitForSelector('#frame-advanced-0');
+        const frame = page.frames().find((f) => f.url().includes('advance.html'));
+        check(!!frame, 'the mapping page opened inside the app');
+        await frame.waitForSelector('#systemCfg', { state: 'attached' });
+        check(await frame.evaluate(() => window.__requests || 0) === 0, 'the page inside did not ask for a device of its own');
+        check(await page.evaluate(() => window.__requests) === 1, 'still the one request of the app');
+        await page.click('#tab-advanced-2'); // files
+        await page.waitForSelector('#frame-advanced-2');
+        check(page.frames().some((f) => f.url().includes('files.html')), 'a second tool opens on the same connection');
+        await go(page, 'update');
+        await page.waitForSelector('#frame-update-0');
+        const ota = page.frames().find((f) => f.url().includes('ota.html'));
+        await ota.waitForFunction(() => document.querySelectorAll('#fwGithub option').length > 1 || /No firmware|Could not/.test(document.getElementById('fwGithub').textContent), null, { timeout: 15000 });
+        check(await page.evaluate(() => window.__requests) === 1, 'the update page used the same connection');
+        check(errors.length === 0, 'no script errors in the app: ' + errors.join('; '));
         await page.context().close();
     }
 

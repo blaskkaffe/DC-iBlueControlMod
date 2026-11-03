@@ -23,7 +23,7 @@ Everything below was last reviewed with the owner on 2026-11-01. Where something
 
 ## Web config (`web/`, published on GitHub Pages from `gh-pages`)
 
-A fork of the BlueRetro web config. Pages: tap buttons, profiles and LED settings (`iblue.html`), Dreamcast controller presets (`dcpresets.html`: standard, 6 button + dual stick, racing, keyboard, mouse, with per-game save), OTA with a list of firmwares from this GitHub (baseline first, checksums checked), and a **Dreamcast only** setting that hides the other consoles. Status: works against a mocked adapter (53 checks); **needs cleanup** (owner's note).
+One page and one Bluetooth connection (redesigned 2026-11): a menu of categories (Device, LEDs, Buttons, Controllers, Games, Update, Advanced), light and dark, usable on a phone. The iBlue settings are panels (`web/panels/`); the BlueRetro pages (mapping, update, files, VMU, N64 pak, debug) are shown inside it on the same connection. A **Dreamcast only** setting hides the other consoles. See `web/README.md`. Status: works against a mocked adapter (71 checks); not tried on a real adapter.
 
 ## On other branches
 
