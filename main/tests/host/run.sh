@@ -10,4 +10,6 @@ cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/tap"
 # the game id mailbox, with a few stubs instead of ESP-IDF
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/gameid" "$d/test_gameid.c" "$d/../../iblue/iblue_gameid.c"
 "$out/gameid"
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/motion" "$d/test_motion.c" "$d/../../iblue/iblue_motion.c" -lm
+"$out/motion"
 rm -rf "$out"
