@@ -1,0 +1,486 @@
+/* iBlueControlMod: the adapter's end of the DC API (dc1). See iblue_dcapi.h.
+ * Runs in the Maple interrupt as well: everything it reads is in RAM (DRAM_ATTR), nothing from libc but memcpy/memset. */
+
+#include <string.h>
+#include <esp_attr.h>
+#include "system/iblue_dcapi.h"
+#include "system/iblue_gameid.h"
+
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+
+/* ---- text, in RAM */
+#define DSTR(name, text) static DRAM_ATTR const char name[] = text
+DSTR(S_LEVEL, "dc1");
+DSTR(S_ID, "id");
+DSTR(S_TO, "to");
+DSTR(S_GET, "get");
+DSTR(S_SET, "set");
+DSTR(S_CALL, "call");
+DSTR(S_OK, "ok ");
+DSTR(S_ERR, "err ");
+DSTR(S_NL, "\n");
+DSTR(S_SP, " ");
+DSTR(S_HELLO, "hello");
+DSTR(S_EVENTS, "events");
+DSTR(S_UNKNOWN, " unknown");
+DSTR(S_READONLY, " readonly");
+DSTR(S_NOTSET, " unavailable not set");
+DSTR(S_NOGAME, " unavailable no game");
+DSTR(S_NOEVENTS, "err events unavailable not implemented\n");
+DSTR(S_RANGE, "err net.selected range dcnow or dcnet\n");
+DSTR(S_BADFIRST, "err request bad first line must be dc1\n");
+DSTR(S_NOTME, "err to unavailable not this device\n");
+DSTR(S_KIND, "adapter");
+DSTR(S_NAME, "iBlueControlMod");
+DSTR(S_API, "1");
+DSTR(S_CAPS, "api,net,game");
+DSTR(S_DCNOW, "dcnow");
+DSTR(S_DCNET, "dcnet");
+DSTR(S_SELF, "self");
+DSTR(S_IBLUE, "iblue");
+DSTR(S_UNKNOWN_VERSION, "unknown");
+
+enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_COUNT };
+#define K_HELLO_LAST K_CAPS
+static DRAM_ATTR const struct {
+    char name[16];
+    uint8_t id;
+} keytab[K_COUNT] = {
+    {"hello.kind", K_KIND}, {"hello.name", K_NAME}, {"hello.version", K_VERSION}, {"hello.api", K_API},
+    {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET},
+};
+
+#define VERSION_MAX 32
+static DRAM_ATTR char version[VERSION_MAX + 1];
+static DRAM_ATTR volatile uint8_t net_selected; /* 0 = not set, 1 = dcnow, 2 = dcnet */
+
+/* maple and ble keep their own buffers (static: the interrupt has little stack) */
+static DRAM_ATTR char maple_req[IBLUE_DCAPI_REQ_MAX + 1];
+static DRAM_ATTR char maple_ans[IBLUE_DCAPI_ANS_MAX + 1];
+static DRAM_ATTR char ble_req[IBLUE_DCAPI_REQ_MAX + 1];
+static DRAM_ATTR char ble_ans[IBLUE_DCAPI_ANS_MAX + 1];
+static DRAM_ATTR size_t ble_req_len, ble_ans_len, ble_pos;
+
+/* ---- output */
+struct out {
+    char *p;
+    char *end; /* one before the end of the buffer: the NUL always fits */
+    char *last_nl; /* where the last complete line ended */
+    int cut;
+};
+
+static void IRAM_ATTR o_mem(struct out *o, const char *s, size_t n) {
+    while (n--) {
+        if (o->p >= o->end) {
+            o->cut = 1;
+            return;
+        }
+        *o->p++ = *s++;
+    }
+}
+
+static void IRAM_ATTR o_str(struct out *o, const char *s) {
+    size_t n = 0;
+
+    while (s[n]) {
+        n++;
+    }
+    o_mem(o, s, n);
+}
+
+static void IRAM_ATTR o_end_line(struct out *o) {
+    o_str(o, S_NL);
+    if (!o->cut) {
+        o->last_nl = o->p;
+    }
+}
+
+static int IRAM_ATTR eq(const char *s, size_t n, const char *lit) {
+    size_t i = 0;
+
+    while (i < n && lit[i] && s[i] == lit[i]) {
+        i++;
+    }
+    return i == n && !lit[i];
+}
+
+/* the value of a key into o; 0 = written, 1 = not available (nothing written) */
+static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
+    switch (id) {
+        case K_KIND:
+            o_str(o, S_KIND);
+            return 0;
+        case K_NAME:
+            o_str(o, S_NAME);
+            return 0;
+        case K_VERSION:
+            o_str(o, version[0] ? version : S_UNKNOWN_VERSION);
+            return 0;
+        case K_API:
+            o_str(o, S_API);
+            return 0;
+        case K_CAPS:
+            o_str(o, S_CAPS);
+            return 0;
+        case K_GAME:
+            if (!iblue_gameid_current()[0]) {
+                return 1;
+            }
+            o_str(o, iblue_gameid_current());
+            return 0;
+        case K_NET:
+            if (!net_selected) {
+                return 1;
+            }
+            o_str(o, net_selected == 2 ? S_DCNET : S_DCNOW);
+            return 0;
+        default:
+            return 1;
+    }
+}
+
+static void IRAM_ATTR line_ok(struct out *o, uint8_t id) {
+    o_str(o, S_OK);
+    o_str(o, keytab[id].name);
+    o_str(o, S_SP);
+    key_value(o, id);
+    o_end_line(o);
+}
+
+static void IRAM_ATTR line_err(struct out *o, const char *key, size_t klen, const char *why) {
+    o_str(o, S_ERR);
+    o_mem(o, key, klen);
+    o_str(o, why);
+    o_end_line(o);
+}
+
+static int IRAM_ATTR find_key(const char *s, size_t n) {
+    for (uint32_t i = 0; i < K_COUNT; i++) {
+        if (eq(s, n, keytab[i].name)) {
+            return (int)keytab[i].id;
+        }
+    }
+    return -1;
+}
+
+static int IRAM_ATTR has_prefix(const char *name, const char *p, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        if (name[i] != p[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* ---- the operations */
+static void IRAM_ATTR op_get(struct out *o, const char *key, size_t klen) {
+    int id;
+
+    if (eq(key, klen, S_HELLO)) {
+        for (uint32_t i = 0; i <= K_HELLO_LAST; i++) {
+            line_ok(o, (uint8_t)i);
+        }
+        return;
+    }
+    if (eq(key, klen, S_EVENTS) || (klen > 6 && has_prefix(S_EVENTS, key, 6) && key[6] == ' ')) {
+        o_str(o, S_NOEVENTS);
+        o->last_nl = o->p;
+        return;
+    }
+    if (klen && key[klen - 1] == '*') {
+        int rows = 0;
+
+        for (uint32_t i = 0; i < K_COUNT; i++) {
+            if (has_prefix(keytab[i].name, key, klen - 1)) {
+                /* a key without a value (no game, network not set) is left out of a list */
+                char tmp[2];
+                struct out t = {tmp, tmp + 1, tmp, 0};
+
+                if (key_value(&t, (uint8_t)i) == 0) {
+                    line_ok(o, (uint8_t)i);
+                    rows++;
+                }
+            }
+        }
+        if (!rows) {
+            line_err(o, key, klen, S_UNKNOWN);
+        }
+        return;
+    }
+    id = find_key(key, klen);
+    if (id < 0) {
+        line_err(o, key, klen, S_UNKNOWN);
+        return;
+    }
+    {
+        char tmp[2];
+        struct out t = {tmp, tmp + 1, tmp, 0};
+
+        if (key_value(&t, (uint8_t)id) != 0) {
+            line_err(o, key, klen, id == K_GAME ? S_NOGAME : S_NOTSET);
+            return;
+        }
+    }
+    line_ok(o, (uint8_t)id);
+}
+
+static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const char *val, size_t vlen) {
+    int id = find_key(key, klen);
+
+    if (id < 0) {
+        line_err(o, key, klen, S_UNKNOWN);
+    }
+    else if (id != K_NET) {
+        line_err(o, key, klen, S_READONLY);
+    }
+    else if (eq(val, vlen, S_DCNOW)) {
+        net_selected = 1;
+        line_ok(o, K_NET);
+    }
+    else if (eq(val, vlen, S_DCNET)) {
+        net_selected = 2;
+        line_ok(o, K_NET);
+    }
+    else {
+        o_str(o, S_RANGE);
+        o->last_nl = o->p;
+    }
+}
+
+/* ---- the engine */
+size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, size_t out_cap) {
+    struct out o;
+    size_t pos = 0;
+    int first = 1;
+    int addressed = 1;
+    char id_txt[11];
+    size_t id_len = 0;
+    const char *ops[16];
+    size_t ops_len[16];
+    uint32_t nops = 0;
+
+    if (!out_cap) {
+        return 0;
+    }
+    o.p = out;
+    o.end = out + out_cap - 1;
+    o.last_nl = out;
+    o.cut = 0;
+    while (pos < req_len && req[pos]) {
+        const char *line = req + pos;
+        size_t n = 0;
+        size_t b;
+        size_t w;
+
+        while (pos + n < req_len && req[pos + n] && req[pos + n] != '\n') {
+            n++;
+        }
+        pos += n;
+        if (pos < req_len && req[pos] == '\n') {
+            pos++;
+        }
+        while (n && (line[n - 1] == '\r' || line[n - 1] == ' ')) {
+            n--;
+        }
+        while (n && (line[0] == ' ')) {
+            line++;
+            n--;
+        }
+        if (!n) {
+            continue;
+        }
+        if (first) {
+            first = 0;
+            if (!eq(line, n, S_LEVEL)) {
+                o_str(&o, S_LEVEL);
+                o_str(&o, S_NL);
+                o_str(&o, S_BADFIRST);
+                o.last_nl = o.p;
+                goto done;
+            }
+            continue;
+        }
+        for (w = 0; w < n && line[w] != ' '; w++) {
+        }
+        b = w;
+        while (b < n && line[b] == ' ') {
+            b++;
+        }
+        if (eq(line, w, S_ID)) {
+            id_len = n - b > 10 ? 10 : n - b;
+            for (size_t i = 0; i < id_len; i++) {
+                id_txt[i] = line[b + i];
+            }
+        }
+        else if (eq(line, w, S_TO)) {
+            size_t tl = n - b;
+
+            addressed = eq(line + b, tl, S_SELF) || eq(line + b, tl, S_IBLUE) || eq(line + b, tl, S_NAME) || !tl;
+        }
+        else if (nops < 16) {
+            ops[nops] = line;
+            ops_len[nops++] = n;
+        }
+    }
+    if (first) {
+        o_str(&o, S_LEVEL);
+        o_str(&o, S_NL);
+        o_str(&o, S_BADFIRST);
+        o.last_nl = o.p;
+        goto done;
+    }
+    o_str(&o, S_LEVEL);
+    o_end_line(&o);
+    if (id_len) {
+        o_str(&o, S_ID);
+        o_str(&o, S_SP);
+        o_mem(&o, id_txt, id_len);
+        o_end_line(&o);
+    }
+    if (!addressed) {
+        o_str(&o, S_NOTME);
+        o.last_nl = o.p;
+        goto done;
+    }
+    for (uint32_t i = 0; i < nops; i++) {
+        const char *line = ops[i];
+        size_t n = ops_len[i];
+        size_t w = 0;
+        size_t b;
+        size_t e;
+
+        while (w < n && line[w] != ' ') {
+            w++;
+        }
+        b = w;
+        while (b < n && line[b] == ' ') {
+            b++;
+        }
+        e = b;
+        while (e < n && line[e] != ' ') {
+            e++;
+        }
+        if (eq(line, w, S_GET)) {
+            /* "get events since=N" keeps its argument: the key is everything after "get " */
+            op_get(&o, line + b, n - b);
+        }
+        else if (eq(line, w, S_SET)) {
+            size_t v = e;
+
+            while (v < n && line[v] == ' ') {
+                v++;
+            }
+            op_set(&o, line + b, e - b, line + v, n - v);
+        }
+        else if (eq(line, w, S_CALL)) {
+            line_err(&o, line + b, e - b, S_UNKNOWN);
+        }
+        else {
+            line_err(&o, line, w, S_UNKNOWN);
+        }
+    }
+done:
+    if (o.cut) {
+        o.p = o.last_nl; /* an answer that does not fit is cut at the last whole line */
+    }
+    *o.p = 0;
+    return (size_t)(o.p - out);
+}
+
+void iblue_dcapi_init(const char *v) {
+    size_t i = 0;
+
+    while (v && v[i] && i < VERSION_MAX) {
+        char c = v[i];
+
+        version[i] = (c == ' ' || c == '\n' || c == '\r') ? '_' : c;
+        i++;
+    }
+    version[i] = 0;
+}
+
+/* ---- Maple: text on the bus travels with every 4 bytes reversed */
+size_t IRAM_ATTR iblue_dcapi_maple(const uint8_t *wire, size_t n, uint8_t *out_wire) {
+    size_t len;
+    size_t words;
+
+    if (n > IBLUE_DCAPI_REQ_MAX) {
+        n = IBLUE_DCAPI_REQ_MAX;
+    }
+    for (size_t w = 0; w < n; w += 4) {
+        for (size_t j = 0; j < 4; j++) {
+            size_t i = w + 3 - j;
+
+            maple_req[w + j] = i < n ? (char)wire[i] : 0;
+        }
+    }
+    /* n may not be a multiple of 4 on a damaged frame: the reversal above reads inside the buffer only */
+    len = iblue_dcapi_handle(maple_req, n, maple_ans, sizeof(maple_ans));
+    words = (len + 3) / 4;
+    for (size_t w = 0; w < words * 4; w += 4) {
+        for (size_t j = 0; j < 4; j++) {
+            size_t i = w + 3 - j;
+
+            out_wire[w + j] = i < len ? (uint8_t)maple_ans[i] : 0;
+        }
+    }
+    return words;
+}
+
+void IRAM_ATTR iblue_dcapi_ext_caps(uint8_t *wire24) {
+    static DRAM_ATTR const char hex[] = "0123456789abcdef";
+    char txt[24];
+
+    memset(txt, 0, sizeof(txt));
+    txt[0] = 'd';
+    txt[1] = 'c';
+    txt[2] = '1';
+    txt[3] = ' ';
+    for (uint32_t i = 0; i < 8; i++) {
+        txt[4 + i] = hex[(IBLUE_DCAPI_CAPS >> (28 - 4 * i)) & 0xF];
+    }
+    for (uint32_t w = 0; w < 24; w += 4) {
+        for (uint32_t j = 0; j < 4; j++) {
+            wire24[w + j] = (uint8_t)txt[w + 3 - j];
+        }
+    }
+}
+
+/* ---- BLE: chunks in, chunks out */
+void iblue_dcapi_ble_write(const uint8_t *data, size_t len) {
+    size_t n;
+
+    if (len < 1) {
+        return;
+    }
+    if (data[0] & 0x01) {
+        ble_req_len = 0;
+        ble_ans_len = 0;
+        ble_pos = 0;
+    }
+    for (n = 1; n < len && ble_req_len < IBLUE_DCAPI_REQ_MAX; n++) {
+        ble_req[ble_req_len++] = (char)data[n];
+    }
+    if (data[0] & 0x02) {
+        ble_ans_len = iblue_dcapi_handle(ble_req, ble_req_len, ble_ans, sizeof(ble_ans));
+        ble_pos = 0;
+    }
+}
+
+size_t iblue_dcapi_ble_read(uint8_t *out, size_t max) {
+    size_t n;
+
+    if (max < 2) {
+        return 0;
+    }
+    n = ble_ans_len - ble_pos;
+    if (n > max - 1) {
+        n = max - 1;
+    }
+    memcpy(out + 1, ble_ans + ble_pos, n);
+    ble_pos += n;
+    out[0] = ble_pos < ble_ans_len ? 1 : 0;
+    return n + 1;
+}
+
+#endif /* CONFIG_BLUERETRO_IBLUE_DCAPI */

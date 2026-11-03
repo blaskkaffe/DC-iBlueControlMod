@@ -46,11 +46,14 @@ void iblue_gameid_set(const uint8_t *raw);
 void iblue_gameid_set_wire(const uint8_t *wire);
 /* The 16 bytes of IBLUE_EXT_NAME as they have to be sent on the Maple bus (every 4 bytes reversed) */
 void iblue_gameid_ext_name(uint8_t *wire16);
+/* The id applied last, NUL terminated; "" = no game (read by the DC API; runs in the Maple interrupt too) */
+const char *iblue_gameid_current(void);
 
 #else
 #define iblue_gameid_set(raw)
 #define iblue_gameid_set_wire(wire)
 #define iblue_gameid_ext_name(wire16)
+#define iblue_gameid_current() ""
 #endif
 
 #endif /* _IBLUE_GAMEID_H_ */

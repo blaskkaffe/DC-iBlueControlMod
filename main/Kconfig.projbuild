@@ -113,6 +113,16 @@ menu "BlueRetro"
             answers the extended device info with "iBlueControlMod " so that openMenu recognises it.
             Needs the VMU accessory on. See docs/led-and-gameid.md.
 
+    config BLUERETRO_IBLUE_DCAPI
+        bool "iBlueControlMod: DC API (language dc1) over Maple command 0x22 and BLE command 0x51"
+        depends on BLUERETRO_IBLUE_GAMEID
+        default y
+        help
+            The adapter answers the DC API, the control language shared by the DC- projects: who it
+            is, what it can do, the game id and the network openMenu or the Pi tells it. Over Maple
+            (command 0x22 to the memory card unit, capability bits behind the marker in the extended
+            device info) and over BLE (command 0x51). See docs/dcapi.md.
+
     config BLUERETRO_IBLUE_DC_MENU_COLORS
         bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"
         depends on BLUERETRO_HW_IBLUECONTROLMOD

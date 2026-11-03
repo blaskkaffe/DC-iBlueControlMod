@@ -66,6 +66,10 @@ void IRAM_ATTR iblue_gameid_set(const uint8_t *raw) {
     adapter_q_fb(&fb);
 }
 
+const char *IRAM_ATTR iblue_gameid_current(void) {
+    return applied;
+}
+
 void IRAM_ATTR iblue_gameid_set_wire(const uint8_t *wire) {
     uint8_t raw[IBLUE_GAMEID_LEN];
 

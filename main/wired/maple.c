@@ -18,6 +18,7 @@
 #include "system/gpio.h"
 #include "system/intr.h"
 #include "system/iblue_gameid.h"
+#include "system/iblue_dcapi.h"
 #include "maple.h"
 
 #define ID_CTRL    0x00000001
@@ -45,6 +46,7 @@
 #define CMD_WRITE_COMPLETE 0x0D
 #define CMD_SET_CONDITION  0x0E
 #define CMD_GAMEID         IBLUE_GAMEID_CMD /* 0x21: the game id from openMenu, see system/iblue_gameid.h */
+#define CMD_DCAPI          IBLUE_DCAPI_CMD  /* 0x22: the DC API, see system/iblue_dcapi.h */
 
 #define ADDR_MASK   0x3F
 #define ADDR_MAIN   0x20
@@ -599,6 +601,7 @@ maple_end:
                                     pkt.cmd = CMD_EXT_INFO_RSP;
                                     memset((void *)&pkt.data32[28], 0, 80);
                                     iblue_gameid_ext_name((void *)&pkt.data32[28]);
+                                    iblue_dcapi_ext_caps((void *)&pkt.data32[32]); /* "dc1 " and the capability bits behind the marker */
                                 }
 #endif
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
@@ -617,6 +620,31 @@ maple_end:
                                 }
                                 pkt.len = 0x00;
                                 pkt.cmd = CMD_ACK;
+                                maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+                                break;
+#endif
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+                            case CMD_DCAPI:
+                                /* The DC API: the payload is the function code, then the request text (word-reversed like all
+                                 * text on the bus). The answer is a data frame with the function code and the answer text. */
+                                if (func.val == ID_VMU_MEM && len >= 1) {
+                                    static uint8_t req[IBLUE_DCAPI_REQ_MAX]; /* static: the interrupt has little stack */
+                                    uint32_t n = (len - 1) * 4;
+
+                                    if (n > IBLUE_DCAPI_REQ_MAX) {
+                                        n = IBLUE_DCAPI_REQ_MAX;
+                                    }
+                                    for (uint32_t i = 0; i < n; i++) {
+                                        req[i] = maple_fix_byte(bad_frame, pkt.data[i + 7], pkt.data[i + 8]);
+                                    }
+                                    pkt.data32[0] = func.val;
+                                    pkt.len = 1 + iblue_dcapi_maple(req, n, (uint8_t *)&pkt.data32[1]);
+                                    pkt.cmd = CMD_DATA_TX;
+                                }
+                                else {
+                                    pkt.len = 0x00;
+                                    pkt.cmd = CMD_ACK;
+                                }
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 break;
 #endif

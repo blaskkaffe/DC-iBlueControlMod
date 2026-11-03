@@ -21,6 +21,7 @@
 #include "system/fs.h"
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 #include "system/iblue_gesture.h"
+#include "system/iblue_dcapi.h"
 #include "system/iblue_profile.h"
 #endif
 
@@ -43,17 +44,19 @@
 #define CFG_CMD_PROFILE_SAVE 0x44     /* write: slot, name; then read: result */
 #define CFG_CMD_PROFILE_LOAD 0x45     /* write: slot; then read: result */
 #define CFG_CMD_PROFILE_DELETE 0x46   /* write: slot; then read: result */
+#define CFG_CMD_DCAPI 0x51            /* DC API (dc1): write flags + request text chunks; then read: more flag + answer chunk */
 /* The ids 0x40 to 0x59 belong to the iBlueControlMod additions; docs/ble-commands.md is THE table, change it first.
  * Reserved for code that is not in this build yet (do not use these numbers for anything else):
  *   0x47-0x4A  LED / animation settings        feature bit 3
  *   0x4B-0x4F  Joy-Con motion (maracas)        feature bit 4
  *   0x50       get port status                 feature bit 5
- *   0x51       DC API text tunnel (draft)     feature bit 6
+ *   0x51       DC API text tunnel             feature bit 6 (built: CFG_CMD_DCAPI below)
  *   0x52-0x59  more port / status commands
  * 0x5A is BlueRetro's own (OTA end). */
 #define IBLUE_FEAT_GESTURES 0x01      /* info features: bit0 tap gestures */
 #define IBLUE_FEAT_PROFILES 0x02      /* bit1 profiles */
 #define IBLUE_FEAT_GAMEID 0x04        /* bit2 Dreamcast game id from openMenu (Maple command 0x21) */
+#define IBLUE_FEAT_DCAPI 0x40         /* bit6 DC API text tunnel (command 0x51) */
 #define IBLUE_CFG_VERSION 1
 #endif
 #define CFG_CMD_SET_DEFAULT_CFG 0x10
@@ -453,6 +456,9 @@ static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
     features |= IBLUE_FEAT_GAMEID;
 #endif
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+    features |= IBLUE_FEAT_DCAPI;
+#endif
     memcpy(d, "iBLU", 4);
     d[4] = IBLUE_CFG_VERSION;
     d[5] = features;
@@ -479,6 +485,15 @@ static void bt_att_cfg_cmd_profile_rsp(uint16_t handle) {
     memcpy(&d[2], name, IBLUE_PROFILE_NAME_MAX);
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 2 + IBLUE_PROFILE_NAME_MAX + 1);
 }
+
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+static void bt_att_cfg_cmd_dcapi_rsp(uint16_t handle) {
+    /* byte 0: 1 = more of the answer follows (read again), 0 = this was the last chunk; then up to 22 bytes of text */
+    uint32_t len = iblue_dcapi_ble_read(bt_hci_pkt_tmp.att_data, 23);
+
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, len);
+}
+#endif
 
 static void bt_att_cfg_cmd_iblue_result_rsp(uint16_t handle) {
     bt_hci_pkt_tmp.att_data[0] = iblue_result;
@@ -525,6 +540,11 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
         case CFG_CMD_PROFILE_DELETE:
             bt_att_cfg_cmd_iblue_result_rsp(handle);
             break;
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+        case CFG_CMD_DCAPI:
+            bt_att_cfg_cmd_dcapi_rsp(handle);
+            break;
+#endif
 #endif
         default:
             printf("# Invalid read cfg cmd: %02X\n", cfg_cmd);
@@ -571,6 +591,11 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
         case CFG_CMD_PROFILE_DELETE:
             iblue_result = len > 1 ? iblue_profile_delete(data[1]) : IBLUE_PROF_BAD_ARG;
             break;
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+        case CFG_CMD_DCAPI:
+            iblue_dcapi_ble_write(&data[1], len - 1); /* flags (bit0 first chunk, bit1 last chunk), then the request text */
+            break;
+#endif
 #endif
         case CFG_CMD_OTA_START:
             update_partition = esp_ota_get_next_update_partition(NULL);

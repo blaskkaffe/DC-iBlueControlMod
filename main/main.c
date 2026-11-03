@@ -16,6 +16,7 @@
 #include "system/delay.h"
 #include "system/fs.h"
 #include "system/led.h"
+#include "system/iblue_dcapi.h"
 #include "adapter/adapter.h"
 #include "adapter/adapter_debug.h"
 #include "adapter/config.h"
@@ -150,6 +151,7 @@ static void wl_init_task(void *arg) {
 
 void app_main()
 {
+    iblue_dcapi_init(esp_app_get_description()->version); /* hello.version of the DC API, before the Maple side starts */
     adapter_init();
 
     start_app_cpu(wired_init_task);
