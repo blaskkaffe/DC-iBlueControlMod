@@ -285,7 +285,7 @@ async function open(browser, server, url, opts) {
         await page.click('#btConn');
         await go(page, 'controllers');
         await page.waitForSelector('#dcPreset0', { state: 'visible' });
-        check((await page.$$('#dcPresetRows button')).length === 5, 'five presets');
+        check((await page.$$('#dcPresetRows button')).length === 6, 'six presets');
         await page.selectOption('#dcOutput', '1');
         await page.click('#dcPreset2'); // racing
         await page.waitForFunction(() => /is set on output 2/.test(document.getElementById('dcPresetStatus').textContent));
@@ -294,10 +294,16 @@ async function open(browser, server, url, opts) {
         check(w.some((x) => x[0] === 2 && x[1][0] === 1), 'output 2 selected first');
         check(w.some((x) => x[0] === 4 || x[0] === 5), 'the default mapping was written');
         await page.evaluate(() => { window.__br.writes.length = 0; });
-        await page.click('#dcPreset3'); // keyboard: mode only
+        await page.click('#dcPreset4'); // keyboard: mode only
         await page.waitForFunction(() => /Keyboard/.test(document.getElementById('dcPresetStatus').textContent));
         const w2 = await page.evaluate(() => window.__br.writes);
         check(w2.every((x) => x[0] === 2 || x[0] === 3) && w2.some((x) => x[0] === 3 && x[1][0] === 2), 'keyboard: only the output mode is written');
+        await page.evaluate(() => { window.__br.writes.length = 0; });
+        await page.click('#dcPreset3'); // maracas
+        await page.waitForFunction(() => /Samba de Amigo maracas is set/.test(document.getElementById('dcPresetStatus').textContent));
+        const w3 = await page.evaluate(() => window.__br.writes);
+        check(w3.some((x) => x[0] === 3 && x[1][0] === 5 && x[1][1] === 3), 'maracas mode (5) written with rumble and memory');
+        check(w3.some((x) => x[0] === 4 || x[0] === 5), 'the maracas mapping was written');
         await go(page, 'games');
         await page.waitForFunction(() => /No game announced/.test(document.getElementById('dcGameText').textContent));
         check(await page.isDisabled('#btnDcGameSave'), 'no game id, nothing to save for a game');

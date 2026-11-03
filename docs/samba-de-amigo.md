@@ -52,9 +52,13 @@ Two controllers as two maracas: BlueRetro already runs several Bluetooth control
 - **Latency**: a rhythm game is sensitive to it. Bluetooth reports come at about 100 Hz (Wii remote), 60 Hz (Joy-Con in the default mode) or 250 Hz (DualSense); a shake can be seen within one or two reports (10 to 30 ms). The existing adapter latency adds to that. The shake press should be sent in the next Maple poll after it is seen.
 - **Settings on the web page**: which controller is left and right (the first to connect is left unless swapped), tilt bands, shake threshold, press time, axis values per band.
 
+## Joy-Cons
+
+Joy-Cons are the best source: each has a 3-axis accelerometer and a gyro, and two of them are one maraca each. BlueRetro already asks them for the full input report (0x30), which has room for the IMU samples (3 per report, 6 values each), but the subcommand that switches the IMU on is compiled out (`SW_ENABLE_IMU_EN` in `sw.c`) and the samples are not parsed. See "Phases" 2 and 3.
+
 ## Phases
 
-1. **Output mode Maracas with sticks** (Flycast's way): the descriptor, name, buttons, and a preset mapping the left stick to the left maraca and the right stick to the right, B and A on two buttons. No motion. Small; shows what the game accepts and answers the open questions (which axis is the height, the value range, the connection loss signal). **Do this first.**
+1. **(Built, untried with the game.) Output mode Maracas with sticks** (Flycast's way): the descriptor, name, buttons, and a preset mapping the left stick to the left maraca and the right stick to the right, B and A on two buttons. No motion. Small; shows what the game accepts and answers the open questions (which axis is the height, the value range, the connection loss signal). **Do this first.**
 2. **One motion source**: parse the DualSense or Joy-Con motion (the simpler report), tilt to height and shake to button, one controller as one maraca; tune on the real game.
 3. **Two controllers, one output**: the "left and right" rule, then the Wii remote.
 4. **Polish**: settings on the web page, per-game selection through the game id, a preset on the presets page.

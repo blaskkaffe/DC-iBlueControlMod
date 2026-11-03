@@ -19,6 +19,7 @@ Everything below was last reviewed with the owner on 2026-11-01. Where something
 | Profiles | four slots, each a whole configuration (mapping, output mode, accessories, global settings), saved and loaded from the web page or by a tap | `iblue_profile.c` | built (how to use: below) |
 | Dreamcast game id | openMenu writes the game's product number into one reserved VMU block, the adapter makes it BlueRetro's game id, so a game can have its own configuration (`DC_<id>`) | `iblue_gameid.c`, openMenu `claude/gameid` | built, **not tested** (needs the openMenu side and the VMU accessory on) |
 | Game id switch | a tap action turns game ids on and off (the LED dips once for on, twice for off) | `iblue_gameid_ctl.c` | **seen** |
+| Maracas output mode (Samba de Amigo, phase 1: the two sticks are the two maracas, L1 / R1 shake, L2 = C, R2 / Start = Start; a preset on the web page) | `maple.c`, `docs/samba-de-amigo.md` | built, **not tried with the game** |
 | Racing output mode | the Dreamcast racing controller (`0x000700FE`: A, B, Start, d-pad, steering, accelerator, brake) | `maple.c` | built, not tried on a console |
 
 ## Web config (`web/`, published on GitHub Pages from `gh-pages`)

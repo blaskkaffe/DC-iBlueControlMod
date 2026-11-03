@@ -428,6 +428,7 @@ export const devCfg = [
     'Keyboard',
     'Mouse',
     'Racing',
+    'Maracas',
 ];
 
 export const accCfg = [

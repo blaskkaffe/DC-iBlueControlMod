@@ -341,6 +341,7 @@ enum {
     DEV_KB,
     DEV_MOUSE,
     DEV_RACING, /* Dreamcast: Racing Controller (steering, accelerator, brake) */
+    DEV_MARACAS, /* Dreamcast: Samba de Amigo maracas (docs/samba-de-amigo.md) */
 };
 
 /* Acc mode */
