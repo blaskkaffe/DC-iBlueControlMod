@@ -43,6 +43,16 @@
 #define CFG_CMD_PROFILE_SAVE 0x44     /* write: slot, name; then read: result */
 #define CFG_CMD_PROFILE_LOAD 0x45     /* write: slot; then read: result */
 #define CFG_CMD_PROFILE_DELETE 0x46   /* write: slot; then read: result */
+/* The ids 0x40 to 0x59 belong to the iBlueControlMod additions; docs/ble-commands.md is THE table, change it first.
+ * Reserved for code that is not in this build yet (do not use these numbers for anything else):
+ *   0x47-0x4A  LED / animation settings        feature bit 3
+ *   0x4B-0x4F  Joy-Con motion (maracas)        feature bit 4
+ *   0x50       get port status                 feature bit 5
+ *   0x51-0x59  more port / status commands
+ * 0x5A is BlueRetro's own (OTA end). */
+#define IBLUE_FEAT_GESTURES 0x01      /* info features: bit0 tap gestures */
+#define IBLUE_FEAT_PROFILES 0x02      /* bit1 profiles */
+#define IBLUE_FEAT_GAMEID 0x04        /* bit2 Dreamcast game id from openMenu (Maple command 0x21) */
 #define IBLUE_CFG_VERSION 1
 #endif
 #define CFG_CMD_SET_DEFAULT_CFG 0x10
@@ -436,11 +446,11 @@ static uint8_t iblue_result;
 static uint8_t iblue_slot;
 
 static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
-    uint8_t features = 0x03; /* bit0 tap gestures, bit1 profiles */
+    uint8_t features = IBLUE_FEAT_GESTURES | IBLUE_FEAT_PROFILES;
     uint8_t *d = bt_hci_pkt_tmp.att_data;
 
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
-    features |= 0x04;        /* bit2 Dreamcast game id from openMenu */
+    features |= IBLUE_FEAT_GAMEID;
 #endif
     memcpy(d, "iBLU", 4);
     d[4] = IBLUE_CFG_VERSION;
