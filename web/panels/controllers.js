@@ -3,6 +3,7 @@ import { devCfg } from '../utils/constants.js';
 import { saveOutputCfg } from '../utils/saveOutputCfg.js';
 import { savePresetInput } from '../utils/savePresetInput.js';
 import { el, card, say, page } from './ui.js';
+import * as motion from './motion.js';
 
 let ctx;
 let status;
@@ -23,6 +24,8 @@ export const dcPresets = [
       text: 'The Dreamcast racing controller: A, B, Start, d-pad, steering (left stick), accelerator (R2) and brake (L2). No X and Y. Not tried on a console yet.' },
     { name: 'Samba de Amigo maracas', mode: 5, map: 'maracas',
       text: "A first step with the sticks: each stick is the position of one maraca (the left stick the left maraca), stick up is high. L1 / R1 shake left / right (B / A), L2 is the left maraca's button C, R2 and Start are Start. Tilt and shake from Joy-Cons is planned. Use port A or B. Not tried with the game yet." },
+    { name: 'Samba de Amigo (Joy-Con motion)', mode: 5, map: 'motion',
+      text: 'The Joy-Cons are the maracas: the left Joy-Con the left maraca, the right one the right maraca. Tilt is the height, turning the sideways position, a shake is the shake (B / A); ZL is the left C, Plus / ZR are Start. Switch motion mode on and calibrate below. Connect the left Joy-Con first. Uses this port and the next input. Not tried with the game yet.' },
     { name: 'Keyboard', mode: 2, map: false, text: 'A Dreamcast keyboard. The mapping of the output is kept.' },
     { name: 'Mouse', mode: 3, map: false, text: 'A Dreamcast mouse. The mapping of the output is kept.' },
 ];
@@ -51,6 +54,29 @@ function maracasMap(def) {
     ];
 }
 
+/* The Joy-Cons as maracas (docs/samba-de-amigo.md): in motion mode a Joy-Con's right stick is its motion (X, Y) and its
+ * left trigger button is its shake. The left Joy-Con (first input) fills the left maraca, the right one (second input,
+ * destination -1) the right maraca. Y is turned around as in maracasMap: up is 255. */
+function motionMaps(def) {
+    const e = (src, dst, id) => [src, dst, id, 100, 50, 135, 0, 0, 0];
+    const left = [
+        e('PAD_RX_LEFT', 'PAD_LX_LEFT', 0), e('PAD_RX_RIGHT', 'PAD_LX_RIGHT', 0),
+        e('PAD_RY_UP', 'PAD_LY_DOWN', 0), e('PAD_RY_DOWN', 'PAD_LY_UP', 0),
+        e('PAD_LT', 'PAD_RB_RIGHT', 0),            /* shake = B */
+        e('PAD_LM', 'PAD_RS', 0),                  /* ZL = C */
+        ...def.filter((x) => x[1].startsWith('CB_')),
+    ];
+    const right = [
+        e('PAD_RX_LEFT', 'PAD_RX_LEFT', -1), e('PAD_RX_RIGHT', 'PAD_RX_RIGHT', -1),
+        e('PAD_RY_UP', 'PAD_RY_DOWN', -1), e('PAD_RY_DOWN', 'PAD_RY_UP', -1),
+        e('PAD_LT', 'PAD_RB_DOWN', -1),            /* shake = A */
+        e('PAD_MM', 'PAD_MM', -1),                 /* Plus = Start */
+        e('PAD_RM', 'PAD_MM', -1),                 /* ZR = Start */
+    ];
+
+    return [left, right];
+}
+
 export function init(root, c) {
     ctx = c;
     status = el('p', { class: 'status', id: 'dcPresetStatus' });
@@ -67,7 +93,8 @@ export function init(root, c) {
                 dcPresets.map((p, i) => el('div', { class: 'tile' },
                     el('h3', { text: p.name }), el('p', { text: p.text }),
                     el('button', { class: 'btn primary', id: 'dcPreset' + i, text: 'Apply', 'aria-label': 'Apply ' + p.name, onClick: () => apply(p) })))),
-            status));
+            status),
+        motion.build(c));
 }
 
 async function apply(preset) {
@@ -79,7 +106,14 @@ async function apply(preset) {
             defaultMap = (await (await fetch('map/default_pad.json')).json()).map;
         }
         await saveOutputCfg(ctx.svc(), Uint8Array.from([preset.mode, ACC_BOTH]), cfgId);
-        if (preset.map) {
+        if (preset.map === 'motion') {
+            if (cfgId > 2) { throw new Error('this one needs two inputs: use port A, B or C'); }
+            const [l, r] = motionMaps(defaultMap);
+
+            await savePresetInput({ map: l }, ctx.svc(), cfgId);
+            await savePresetInput({ map: r }, ctx.svc(), cfgId + 1);
+        }
+        else if (preset.map) {
             await savePresetInput({ map: preset.map === 'maracas' ? maracasMap(defaultMap) : defaultMap }, ctx.svc(), cfgId);
         }
         say(status, preset.name + ' is set on output ' + (cfgId + 1) + ' (' + devCfg[preset.mode] + ').', 'ok');
@@ -90,5 +124,5 @@ async function apply(preset) {
     }
 }
 
-export function connected() { say(status, ''); }
-export function disconnected() { say(status, ''); }
+export async function connected() { say(status, ''); await motion.connected(); }
+export function disconnected() { say(status, ''); motion.disconnected(); }

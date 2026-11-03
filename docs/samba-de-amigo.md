@@ -1,6 +1,6 @@
 # Samba de Amigo maracas: concept
 
-Goal: play Samba de Amigo with two Wii remotes or two Joy-Cons (or one DualShock / DualSense) instead of the real maracas, by sensing the angle and shaking of each controller and reporting it to the Dreamcast as a maracas controller. Status: **research and concept only, nothing is built.** Written 2026-11-01.
+Goal: play Samba de Amigo with two Wii remotes or two Joy-Cons (or one DualShock / DualSense) instead of the real maracas, by sensing the angle and shaking of each controller and reporting it to the Dreamcast as a maracas controller. Status: **maracas output mode (sticks) and Joy-Con motion are built, neither is tried with the game or on hardware; Wii remote motion is not built.** Written 2026-11-01.
 
 ## What the Dreamcast sees (Sega's maracas spec)
 
@@ -50,13 +50,21 @@ Two controllers as two maracas: BlueRetro already runs several Bluetooth control
 
 ## Joy-Cons
 
-Joy-Cons are the best source: each has a 3-axis accelerometer and a gyro, and two of them are one maraca each. BlueRetro already asks them for the full input report (0x30), which has room for the IMU samples (3 per report, 6 values each), but the subcommand that switches the IMU on is compiled out (`SW_ENABLE_IMU_EN` in `sw.c`) and the samples are not parsed. See "Phases" 2 and 3.
+Joy-Cons are the best source: each has a 3-axis accelerometer and a gyro, and two of them are one maraca each. 
+**Built (phase 2, untried on hardware, only the maths is tested on the host):**
+
+- With **motion mode** on (web page, Controllers, "Joy-Con motion"; saved in NVS) the Switch start-up of a Joy-Con also sets the native report (0x30) and enables the IMU; other controllers and motion mode off are untouched. Connect the Joy-Cons again after switching it on.
+- Each report holds three samples of accelerometer (+-8 g) and gyro (+-2000 dps); `iblue_motion.c` (portable, host tests in `main/tests/host/test_motion.c`) turns them into **height** (how far the controller points above the horizon), **sideways position** (heading from the gyro about the vertical, relative to "forward") and a **shake** (a burst in the acceleration, with a pause so a swing counts once).
+- They come out as the Joy-Con's **right stick** (X, Y) and its **left trigger button** (the shake), in `sw.c`. The preset "Samba de Amigo (Joy-Con motion)" maps the left Joy-Con (first input) to the left maraca and the right Joy-Con (second input, destination -1) to the right maraca; Y is turned around (up = 255), shake = B / A, ZL = C, Plus / ZR = Start. Connect the left Joy-Con first.
+- **Calibration by poses** (all held still): *Forward* (pointing at the TV, level, both controllers: sets the middle and the heading zero; also by holding Minus (left) or Home (right) for a second), *Up* and *Down* (learns which of the controller's axes is the long axis: kept over restarts per side), *Out* (turn outwards to its own side, level: sets the sideways range and which way is left). The web page asks for a pose after 5 s; the adapter LED blinks once when it was taken and three times when the controller was not still. Live values per Joy-Con are shown on the page.
+- BLE commands 0x4B (get settings, two parts), 0x4C (set), 0x4D (pose, delay), 0x4E (status), 0x4F (forget the learned axes).
+- The unknowns: the Joy-Cons' axis directions are learned by the poses rather than assumed; how the game turns Y into its three heights and whether it reads X is still only known by trying.
 
 ## Phases
 
 1. **(Built, untried with the game.) Output mode Maracas with sticks** (Flycast's way): the descriptor, name, power, and a preset mapping the left stick to the left maraca and the right stick to the right (stick up = high: the Y axes are turned around), L1 / R1 = shake B / A, L2 = C, R2 / Start = Start. No motion. Small; shows what the game accepts and answers the open questions (which axis is the height, the value range, the connection loss signal). **Do this first.**
-2. **One motion source**: parse the DualSense or Joy-Con motion (the simpler report), tilt to height and shake to button, one controller as one maraca; tune on the real game.
-3. **Two controllers, one output**: the "left and right" rule, then the Wii remote.
+2. **(Built, untried on hardware.) Joy-Con motion**: tilt to height, turning to sideways position, shake to button, calibration by poses; two Joy-Cons are the two maracas (see above). Tune on the real game.
+3. **Two controllers, one output** is done in the preset (the second input maps into the first output). Then the Wii remote and nunchuk (accelerometer reports 0x31 / 0x35 / 0x37).
 4. **Polish**: settings on the web page, per-game selection through the game id, a preset on the presets page.
 
 ## Risks

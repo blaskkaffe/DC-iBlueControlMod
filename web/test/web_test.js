@@ -64,7 +64,8 @@ async function setupGithub(page, opts) {
 async function open(browser, server, url, opts) {
     const consts = await import(path.join(site, 'utils/constants.js'));
     const anim = await import(path.join(site, 'utils/ibluAnim.js'));
-    opts = Object.assign({ animDefaults: anim.ibluAnimDefaults(), animMin: anim.ibluAnimFields.map((f) => f.min), animMax: anim.ibluAnimFields.map((f) => f.max) }, opts);
+    const mo = await import(path.join(site, 'utils/ibluMotion.js'));
+    opts = Object.assign({ motionDefaults: mo.ibluMotionDefaults(), motionMin: mo.ibluMotionFields.map((f) => f.min), motionMax: mo.ibluMotionFields.map((f) => f.max), animDefaults: anim.ibluAnimDefaults(), animMin: anim.ibluAnimFields.map((f) => f.min), animMax: anim.ibluAnimFields.map((f) => f.max) }, opts);
     const context = await browser.newContext();
     const page = await context.newPage();
     const errors = [];
@@ -91,7 +92,7 @@ async function open(browser, server, url, opts) {
         await page.click('#btConn');
         await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
         const info = await page.textContent('#deviceInfo');
-        check(/tap buttons, profiles, LED settings, game id/.test(info), 'the device card shows the features: ' + info);
+        check(/tap buttons, profiles, LED settings, game id, Joy-Con motion/.test(info), 'the device card shows the features: ' + info);
         check(await page.evaluate(() => window.__requests) === 1, 'one request for a device');
         await go(page, 'buttons');
         await page.waitForSelector('#gesture0', { state: 'visible' });
@@ -163,6 +164,18 @@ async function open(browser, server, url, opts) {
         check(await page.inputValue('#led_tank_len_n') === '400', 'and the page shows them');
         check(errors.length === 0, 'no script errors with the LED settings: ' + errors.join('; '));
         await page.context().close();
+    }
+    {   // the motion table of the page is the one of the firmware
+        const mo = await import(path.join(site, 'utils/ibluMotion.js'));
+        const cands = [path.join(__dirname, '../../main/iblue/iblue_motion.c'), '/home/user/iBlueControlMod/main/iblue/iblue_motion.c'];
+        const src = cands.find((f) => fs.existsSync(f));
+        if (src) {
+            const text = fs.readFileSync(src, 'utf8');
+            const grab = (name) => text.match(new RegExp(name + '\\s*=\\s*\\{([^}]*)\\}'))[1].split(',').map((x) => parseInt(x.trim(), 10));
+            check(grab('iblue_motion_cfg_default').join() === mo.ibluMotionDefaults().join(), 'motion defaults equal the firmware');
+            check(grab('iblue_motion_cfg_min').join() === mo.ibluMotionFields.map((f) => f.min).join(), 'motion minimums equal the firmware');
+            check(grab('iblue_motion_cfg_max').join() === mo.ibluMotionFields.map((f) => f.max).join(), 'motion maximums equal the firmware');
+        }
     }
     {   // the table of the page is the table of the firmware, when its source is at hand
         const anim = await import(path.join(site, 'utils/ibluAnim.js'));
@@ -285,7 +298,7 @@ async function open(browser, server, url, opts) {
         await page.click('#btConn');
         await go(page, 'controllers');
         await page.waitForSelector('#dcPreset0', { state: 'visible' });
-        check((await page.$$('#dcPresetRows button')).length === 6, 'six presets');
+        check((await page.$$('#dcPresetRows button')).length === 7, 'seven presets');
         await page.selectOption('#dcOutput', '1');
         await page.click('#dcPreset2'); // racing
         await page.waitForFunction(() => /is set on output 2/.test(document.getElementById('dcPresetStatus').textContent));
@@ -294,7 +307,7 @@ async function open(browser, server, url, opts) {
         check(w.some((x) => x[0] === 2 && x[1][0] === 1), 'output 2 selected first');
         check(w.some((x) => x[0] === 4 || x[0] === 5), 'the default mapping was written');
         await page.evaluate(() => { window.__br.writes.length = 0; });
-        await page.click('#dcPreset4'); // keyboard: mode only
+        await page.click('#dcPreset5'); // keyboard: mode only
         await page.waitForFunction(() => /Keyboard/.test(document.getElementById('dcPresetStatus').textContent));
         const w2 = await page.evaluate(() => window.__br.writes);
         check(w2.every((x) => x[0] === 2 || x[0] === 3) && w2.some((x) => x[0] === 3 && x[1][0] === 2), 'keyboard: only the output mode is written');
@@ -304,6 +317,34 @@ async function open(browser, server, url, opts) {
         const w3 = await page.evaluate(() => window.__br.writes);
         check(w3.some((x) => x[0] === 3 && x[1][0] === 5 && x[1][1] === 3), 'maracas mode (5) written with rumble and memory');
         check(w3.some((x) => x[0] === 4 || x[0] === 5), 'the maracas mapping was written');
+        // the Joy-Con motion preset: two inputs, the right Joy-Con into the first output
+        await page.evaluate(() => { window.__br.writes.length = 0; });
+        await page.selectOption('#dcOutput', '0');
+        await page.click('#dcPreset4');
+        await page.waitForFunction(() => /Joy-Con motion\) is set/.test(document.getElementById('dcPresetStatus').textContent));
+        const w4 = await page.evaluate(() => window.__br.writes);
+        check(w4.some((x) => x[0] === 3 && x[1][0] === 5), 'motion preset: maracas mode written');
+        const inputs = w4.filter((x) => x[0] === 4 || x[0] === 5);
+        check(inputs.length >= 2, 'motion preset: two inputs were written');
+        // motion settings and the calibration poses
+        check(await page.isVisible('#motionCards'), 'the Joy-Con motion cards are shown');
+        check(await page.isChecked('#mo_mode') === false, 'motion mode is off by default');
+        await page.check('#mo_mode');
+        await page.fill('#mo_shake_mg_n', '9999'); // beyond the range: the firmware clamps
+        await page.click('#btnMoSave');
+        await page.waitForFunction(() => /Saved/.test(document.getElementById('moStatus').textContent));
+        const mcfg = await page.evaluate(() => window.__br.motion);
+        check(mcfg[0] === 1 && mcfg[4] === 4000, 'motion settings saved and clamped: ' + mcfg);
+        await page.click('#btnMoDefaults');
+        check(await page.inputValue('#mo_shake_mg_n') === '1200' && !(await page.isChecked('#mo_mode')), 'defaults put the form back');
+        await page.click('#moPose1');
+        await page.waitForFunction(() => window.__br.poses.length === 1);
+        check(JSON.stringify(await page.evaluate(() => window.__br.poses[0])) === '[1,5]', 'the up pose was asked for with 5 s delay');
+        await page.waitForFunction(() => /Left Joy-Con: height 17/.test(document.getElementById('moLive').textContent), null, { timeout: 8000 });
+        const liveText = await page.textContent('#moLive');
+        check(/Right Joy-Con.*SHAKE/.test(liveText) && /X 138 Y 148/.test(liveText), 'live view shows both Joy-Cons: ' + liveText);
+        await page.click('#btnMoForget');
+        await page.waitForFunction(() => window.__br.motionReset === 1);
         await go(page, 'games');
         await page.waitForFunction(() => /No game announced/.test(document.getElementById('dcGameText').textContent));
         check(await page.isDisabled('#btnDcGameSave'), 'no game id, nothing to save for a game');

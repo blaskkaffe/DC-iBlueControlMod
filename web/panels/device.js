@@ -48,7 +48,7 @@ async function run(question, fn, done) {
 
 export function connected() {
     const c = ctx.conn;
-    const features = c.info ? ['tap buttons', c.info.profiles ? 'profiles' : null, c.info.animation ? 'LED settings' : null, c.info.gameId ? 'game id' : null].filter(Boolean).join(', ') : 'none (another BlueRetro firmware)';
+    const features = c.info ? ['tap buttons', c.info.profiles ? 'profiles' : null, c.info.animation ? 'LED settings' : null, c.info.gameId ? 'game id' : null, c.info.motion ? 'Joy-Con motion' : null].filter(Boolean).join(', ') : 'none (another BlueRetro firmware)';
 
     kv.replaceChildren(
         el('dt', { text: 'Name' }), el('dd', { text: c.name }),

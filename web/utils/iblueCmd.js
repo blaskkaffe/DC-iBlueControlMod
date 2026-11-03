@@ -2,9 +2,11 @@
 // A command is written to the command characteristic, the answer is read from it right after.
 import { brUuid, cfg_cmd_get_iblue_info, cfg_cmd_get_gestures, cfg_cmd_set_gestures,
     cfg_cmd_get_profile, cfg_cmd_profile_save, cfg_cmd_profile_load, cfg_cmd_profile_delete,
-    cfg_cmd_get_anim_cfg, cfg_cmd_set_anim_cfg, cfg_cmd_play_anim, cfg_cmd_reset_anim_cfg }
+    cfg_cmd_get_anim_cfg, cfg_cmd_set_anim_cfg, cfg_cmd_play_anim, cfg_cmd_reset_anim_cfg,
+    cfg_cmd_get_motion_cfg, cfg_cmd_set_motion_cfg, cfg_cmd_motion_pose, cfg_cmd_get_motion_status, cfg_cmd_reset_motion_cal }
     from './constants.js';
 import { ibluAnimFields } from './ibluAnim.js';
+import { ibluMotionFields } from './ibluMotion.js';
 
 async function send(service, bytes, readAnswer) {
     const chrc = await service.getCharacteristic(brUuid[7]);
@@ -26,6 +28,7 @@ export async function getIblueInfo(service) {
         profiles: (f & 2) !== 0,
         gameId: (f & 4) !== 0,
         animation: (f & 8) !== 0,
+        motion: (f & 16) !== 0,
         gestureCount: v.getUint8(6),
         profileCount: v.getUint8(7),
         actionCount: v.getUint8(8),
@@ -110,4 +113,54 @@ export async function resetAnimCfg(service) {
 /* Play the whole boot animation now, from its start */
 export async function playAnim(service) {
     await send(service, [cfg_cmd_play_anim], false);
+}
+
+/* The Joy-Con motion settings, in the order of ibluMotionFields (two parts, like the animation settings) */
+export async function getMotionCfg(service) {
+    const values = [];
+
+    for (const part of [0, 1]) {
+        const v = await send(service, [cfg_cmd_get_motion_cfg, part], true);
+        for (let i = 2; i + 1 < v.byteLength; i += 2) {
+            values.push(v.getInt16(i, true));
+        }
+    }
+    return values.slice(0, ibluMotionFields.length);
+}
+
+/* 0 = saved */
+export async function setMotionCfg(service, values) {
+    const bytes = [cfg_cmd_set_motion_cfg, 1];
+
+    for (const x of values) {
+        const u = x & 0xFFFF;
+        bytes.push(u & 0xFF, u >> 8);
+    }
+    const v = await send(service, bytes, true);
+    return v.getUint8(0);
+}
+
+/* Take a calibration pose after `delay` seconds (hold the Joy-Cons still then). 0 = asked */
+export async function motionPose(service, pose, delay) {
+    const v = await send(service, [cfg_cmd_motion_pose, pose, delay], true);
+    return v.getUint8(0);
+}
+
+export async function resetMotionCal(service) {
+    const v = await send(service, [cfg_cmd_reset_motion_cal], true);
+    return v.getUint8(0);
+}
+
+/* The Joy-Cons that are followed: side (-1 left, 1 right), flags, x and y (-127..127), height and heading in degrees */
+export async function getMotionStatus(service) {
+    const v = await send(service, [cfg_cmd_get_motion_status], true);
+    const out = [];
+
+    for (let i = 0; i < v.getUint8(0) && 1 + 6 * i + 5 < v.byteLength; i++) {
+        const o = 1 + 6 * i;
+        const f = v.getUint8(o + 1);
+        out.push({ side: v.getInt8(o), forward: !!(f & 1), axis: !!(f & 2), shaking: !!(f & 4), range: !!(f & 8), failed: !!(f & 16),
+            x: v.getInt8(o + 2), y: v.getInt8(o + 3), height: v.getInt8(o + 4), heading: v.getInt8(o + 5) * 2 });
+    }
+    return out;
 }
