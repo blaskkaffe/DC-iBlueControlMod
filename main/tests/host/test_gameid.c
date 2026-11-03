@@ -1,4 +1,4 @@
-/* Host test of the Dreamcast game id mailbox (system/iblue_gameid.c, with stubs): see run.sh */
+/* Host test of the Dreamcast game id (Maple command 0x21, system/iblue_gameid.c, with stubs): see run.sh */
 #include <stdio.h>
 #include <string.h>
 #include "adapter/adapter.h"
@@ -7,60 +7,67 @@
 static int fails, checks;
 #define CHECK(c) do { checks++; if (!(c)) { fails++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 
-static struct raw_fb queued[8];
+static struct raw_fb queued[16];
 static int nq;
-void adapter_q_fb(struct raw_fb *fb) { if (nq < 8) queued[nq++] = *fb; }
+void adapter_q_fb(struct raw_fb *fb) { if (nq < 16) queued[nq++] = *fb; }
 
-static uint32_t crc32(const uint8_t *d, uint32_t n) {
-    uint32_t c = 0xFFFFFFFF;
-    while (n--) { c ^= *d++; for (int i = 0; i < 8; i++) c = (c >> 1) ^ (0xEDB88320 & (0 - (c & 1))); }
-    return ~c;
+/* What openMenu sends: strncpy(frame + 4, product, 12), so NUL padded */
+static void send_id(const char *id) {
+    uint8_t raw[IBLUE_GAMEID_LEN];
+    memset(raw, 0, sizeof(raw));
+    strncpy((char *)raw, id, sizeof(raw));
+    iblue_gameid_set(raw);
 }
 
-/* What openMenu writes: the block, as four 128 byte phases */
-static void make(uint8_t *b, uint32_t seq, const char *id) {
-    memset(b, 0, 512);
-    memcpy(b, "iBGI", 4);
-    b[4] = 1;
-    b[8] = (uint8_t)seq; b[9] = (uint8_t)(seq >> 8);
-    strncpy((char *)b + 12, id, 16);
-    uint32_t c = crc32(b, 28);
-    b[28] = (uint8_t)c; b[29] = (uint8_t)(c >> 8); b[30] = (uint8_t)(c >> 16); b[31] = (uint8_t)(c >> 24);
+/* The same through the Maple bus: the sender's memory with every 4 bytes reversed (what maple.c receives) */
+static void send_wire(const char *id) {
+    uint8_t mem[IBLUE_GAMEID_LEN], wire[IBLUE_GAMEID_LEN];
+    memset(mem, 0, sizeof(mem));
+    strncpy((char *)mem, id, sizeof(mem));
+    for (int w = 0; w < IBLUE_GAMEID_LEN; w += 4)
+        for (int j = 0; j < 4; j++) wire[w + j] = mem[w + 3 - j];
+    iblue_gameid_set_wire(wire);
 }
-static void send(const uint8_t *b) { for (uint32_t p = 0; p < 4; p++) iblue_gameid_write(p, b + p * 128); }
 
 int main(void) {
-    uint8_t b[512], r[512];
+    uint8_t raw[IBLUE_GAMEID_LEN];
+    uint8_t ext[16];
 
-    CHECK(iblue_gameid_owns(200) && !iblue_gameid_owns(199) && !iblue_gameid_owns(201));
-    iblue_gameid_read(r);
-    CHECK(memcmp(r, "iBGI", 4) == 0 && r[4] == 1);                          /* marker an untouched adapter shows */
+    CHECK(IBLUE_GAMEID_CMD == 0x21 && IBLUE_GAMEID_LEN == 12);
+    CHECK(strlen(IBLUE_EXT_NAME) == 16);                                    /* the 16 bytes openMenu compares */
 
-    make(b, 1, "MK51035"); send(b);
+    iblue_gameid_ext_name(ext);                                             /* sent word-reversed, like the other strings in maple.c */
+    CHECK(memcmp(ext, "ulBinoCelort doM", 16) == 0);
+
+    send_id(""); CHECK(nq == 0);                                            /* nothing applied yet: an empty id changes nothing */
+
+    send_id("MK51035");
     CHECK(nq == 1 && queued[0].header.type == FB_TYPE_SYS_ID && queued[0].header.data_len == 10 &&
           memcmp(queued[0].data, "DC_MK51035", 10) == 0);
-    iblue_gameid_read(r);
-    CHECK(memcmp(r + 12, "MK51035", 7) == 0 && r[8] == 1);                  /* read back what was applied */
 
-    send(b);                                                                /* the same request again: nothing */
-    CHECK(nq == 1);
-    make(b, 2, "MK51035"); send(b);                                         /* a new sequence number: applied again */
-    CHECK(nq == 2);
+    send_id("MK51035"); CHECK(nq == 1);                                     /* the same id again (openMenu sends to every launch): nothing */
 
-    make(b, 3, "T-8101N-50-EXTRA"); send(b);                                /* long ids are cut to 10 characters */
-    CHECK(nq == 3 && queued[2].header.data_len == 13 && memcmp(queued[2].data, "DC_T-8101N-5", 12) == 0);
+    send_id("T-8101N-50-E");                                                /* 12 bytes without a NUL: cut to 10 characters */
+    CHECK(nq == 2 && queued[1].header.data_len == 13 && memcmp(queued[1].data, "DC_T-8101N-5", 12) == 0);
 
-    make(b, 4, ""); send(b);                                                /* no game: back to the normal configuration */
-    CHECK(nq == 4 && queued[3].header.data_len == 0);
+    memset(raw, ' ', sizeof(raw)); memcpy(raw, "MK51035", 7);                /* a sender that pads with spaces */
+    iblue_gameid_set(raw);
+    CHECK(nq == 3 && queued[2].header.data_len == 10 && memcmp(queued[2].data, "DC_MK51035", 10) == 0);
+
+    send_id(""); CHECK(nq == 4 && queued[3].header.data_len == 0);          /* no game: back to the normal configuration */
+    send_id(""); CHECK(nq == 4);                                            /* ... and only once */
 
     /* things that must not do anything */
-    make(b, 5, "../etc"); send(b); CHECK(nq == 4);                          /* characters that cannot be in a file name */
-    make(b, 6, "MK 1"); send(b); CHECK(nq == 4);
-    make(b, 7, "ABC"); b[13] ^= 1; send(b); CHECK(nq == 4);                 /* bad CRC */
-    make(b, 8, "ABC"); for (uint32_t p = 0; p < 3; p++) iblue_gameid_write(p, b + p * 128);
-    CHECK(nq == 4);                                                         /* half a write */
-    memset(b, 0xFF, 512); send(b); CHECK(nq == 4);                          /* a game formatting the block */
-    make(b, 9, "OKGAME"); send(b); CHECK(nq == 5 && memcmp(queued[4].data, "DC_OKGAME", 9) == 0); /* still works after that */
+    send_id("DCBIOS"); CHECK(nq == 4);                                      /* the BIOS menu is not a game */
+    send_id("../etc"); CHECK(nq == 4);                                      /* characters that cannot be in a file name */
+    send_id("MK 1"); CHECK(nq == 4);
+    memset(raw, 0xFF, sizeof(raw)); iblue_gameid_set(raw); CHECK(nq == 4);  /* a corrupt frame */
+    send_id("OKGAME"); CHECK(nq == 5 && memcmp(queued[4].data, "DC_OKGAME", 9) == 0);   /* still works after that */
+    send_id("DCBIOS"); send_id("OKGAME"); CHECK(nq == 5);                   /* DCBIOS in between does not forget the game */
+
+    send_wire("T-8101N-50"); CHECK(nq == 6 && queued[5].header.data_len == 13 && memcmp(queued[5].data, "DC_T-8101N-50", 13) == 0);   /* as it arrives on the bus */
+    send_wire("T-8101N-50"); CHECK(nq == 6);
+    send_wire("DCBIOS"); CHECK(nq == 6);
 
     printf("%d checks, %d failed\n", checks, fails);
     return fails != 0;

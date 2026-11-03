@@ -103,13 +103,15 @@ menu "BlueRetro"
             time since the firmware started).
 
     config BLUERETRO_IBLUE_GAMEID
-        bool "iBlueControlMod: Dreamcast game id from openMenu (reserved VMU block 200)"
+        bool "iBlueControlMod: Dreamcast game id from openMenu (Maple command 0x21)"
         depends on BLUERETRO_SYSTEM_DC && BLUERETRO_HW_IBLUECONTROLMOD
         default y
         help
-            openMenu writes the product number of the game it starts into one block of the emulated
-            VMU (never stored as VMU data). It becomes BlueRetro's game id, so blueretro.io can save
-            a configuration per game. Needs the VMU accessory on. See docs/led-and-gameid.md.
+            openMenu sends the product number of the game it starts to the memory card unit with Maple
+            command 0x21, like it does for VM2, VMU Pro, USB4Maple and Pico2Maple. It becomes
+            BlueRetro's game id, so blueretro.io can save a configuration per game. The adapter also
+            answers the extended device info with "iBlueControlMod " so that openMenu recognises it.
+            Needs the VMU accessory on. See docs/led-and-gameid.md.
 
     config BLUERETRO_IBLUE_DC_MENU_COLORS
         bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"

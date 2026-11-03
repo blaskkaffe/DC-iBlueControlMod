@@ -1,4 +1,4 @@
-/* iBlueControlMod: Dreamcast game id mailbox. See iblue_gameid.h. */
+/* iBlueControlMod: Dreamcast game id (Maple command 0x21). See iblue_gameid.h. */
 
 #include <string.h>
 #include <esp_attr.h>
@@ -7,87 +7,48 @@
 
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
 
-#define ID_MAX 16
 #define ID_USED 10 /* "DC_" + 10 characters fit in the 13 bytes of a game id feedback */
 
-static DRAM_ATTR uint8_t box[IBLUE_GAMEID_BLOCK_SIZE];
-static DRAM_ATTR uint32_t last_seq;
-static DRAM_ATTR uint8_t inited;
+/* The id applied last, NUL terminated; "" = no game. */
+static DRAM_ATTR char applied[IBLUE_GAMEID_LEN + 1];
 
-static uint32_t IRAM_ATTR rd32(const uint8_t *p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-}
-
-static void IRAM_ATTR wr32(uint8_t *p, uint32_t v) {
-    p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
-}
-
-static uint32_t IRAM_ATTR crc32(const uint8_t *data, uint32_t len) {
-    uint32_t crc = 0xFFFFFFFF;
-
-    while (len--) {
-        crc ^= *data++;
-        for (int i = 0; i < 8; i++) {
-            crc = (crc >> 1) ^ (0xEDB88320 & (0 - (crc & 1)));
-        }
-    }
-    return ~crc;
-}
-
-static void IRAM_ATTR init_box(void) {
-    memset(box, 0, sizeof(box));
-    memcpy(box, "iBGI", 4);
-    box[4] = 1;
-    wr32(box + 28, crc32(box, 28));
-    inited = 1;
-}
-
-int IRAM_ATTR iblue_gameid_owns(uint32_t block) {
-    return block == IBLUE_GAMEID_BLOCK;
-}
-
-void IRAM_ATTR iblue_gameid_read(uint8_t *dst) {
-    if (!inited) {
-        init_box();
-    }
-    memcpy(dst, box, sizeof(box));
-}
-
-void IRAM_ATTR iblue_gameid_write(uint32_t phase, const uint8_t *src128) {
+void IRAM_ATTR iblue_gameid_set(const uint8_t *raw) {
+    char id[IBLUE_GAMEID_LEN + 1];
     struct raw_fb fb = {0};
     uint32_t n = 0;
+    uint32_t i;
 
-    if (!inited) {
-        init_box();
-    }
-    if (phase > 3) {
-        return;
-    }
-    memcpy(&box[phase * 128], src128, 128);
-    if (phase != 3) {
-        return; /* the block is complete after its fourth part */
-    }
-    /* Check the whole block before anything is done with it */
-    if (memcmp(box, "iBGI", 4) != 0 || box[4] != 1 || crc32(box, 28) != rd32(box + 28)) {
-        init_box(); /* a game or the BIOS formatting the card, or half a write: not for us */
-        return;
-    }
-    if (rd32(box + 8) == last_seq && last_seq != 0) {
-        return; /* same request again */
-    }
-    for (uint32_t i = 0; i < ID_MAX; i++) {
-        uint8_t c = box[12 + i];
-
-        if (c == 0) {
-            break;
-        }
-        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_')) {
-            init_box();
-            return; /* the id becomes part of a file name */
-        }
+    while (n < IBLUE_GAMEID_LEN && raw[n]) {
+        id[n] = (char)raw[n];
         n++;
     }
-    last_seq = rd32(box + 8);
+    while (n && id[n - 1] == ' ') {
+        n--; /* some senders pad with spaces */
+    }
+    id[n] = 0;
+
+    if (n == 6 && memcmp(id, "DCBIOS", 6) == 0) {
+        return; /* not a game: the BIOS menu */
+    }
+    for (i = 0; i < n; i++) {
+        char c = id[i];
+
+        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_')) {
+            return; /* the id becomes part of a file name; a corrupt frame ends up here too */
+        }
+    }
+    for (i = 0; i <= n; i++) {
+        if (applied[i] != id[i]) {
+            break;
+        }
+    }
+    if (i > n) {
+        return; /* the same id again */
+    }
+    for (i = 0; i <= n; i++) {
+        applied[i] = id[i];
+    }
+
     if (n > ID_USED) {
         n = ID_USED;
     }
@@ -96,15 +57,34 @@ void IRAM_ATTR iblue_gameid_write(uint32_t phase, const uint8_t *src128) {
         fb.data[0] = 'D';
         fb.data[1] = 'C';
         fb.data[2] = '_';
-        memcpy(&fb.data[3], &box[12], n);
+        memcpy(&fb.data[3], id, n);
         fb.header.data_len = (uint8_t)(3 + n);
     }
     else {
         fb.header.data_len = 0; /* no game: the normal configuration */
     }
     adapter_q_fb(&fb);
-    /* Keep the block as it is: it is what a read gives back */
-    wr32(box + 28, crc32(box, 28));
+}
+
+void IRAM_ATTR iblue_gameid_set_wire(const uint8_t *wire) {
+    uint8_t raw[IBLUE_GAMEID_LEN];
+
+    for (uint32_t w = 0; w < IBLUE_GAMEID_LEN; w += 4) {
+        for (uint32_t j = 0; j < 4; j++) {
+            raw[w + j] = wire[w + 3 - j];
+        }
+    }
+    iblue_gameid_set(raw);
+}
+
+void IRAM_ATTR iblue_gameid_ext_name(uint8_t *wire16) {
+    static DRAM_ATTR const char name[17] = IBLUE_EXT_NAME; /* in RAM: this runs in the Maple interrupt */
+
+    for (uint32_t w = 0; w < 16; w += 4) {
+        for (uint32_t j = 0; j < 4; j++) {
+            wire16[w + j] = (uint8_t)name[w + 3 - j];
+        }
+    }
 }
 
 #endif /* CONFIG_BLUERETRO_IBLUE_GAMEID */

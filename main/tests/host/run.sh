@@ -7,7 +7,7 @@ cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/anim
 "$out/anim"
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/tap" "$d/test_tap.c" "$d/../../system/iblue_tap.c"
 "$out/tap"
-# the game id mailbox, with a few stubs instead of ESP-IDF
+# the game id (Maple command 0x21), with a few stubs instead of ESP-IDF
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/gameid" "$d/test_gameid.c" "$d/../../system/iblue_gameid.c"
 "$out/gameid"
 rm -rf "$out"

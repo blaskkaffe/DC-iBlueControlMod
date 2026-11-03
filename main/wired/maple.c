@@ -44,6 +44,7 @@
 #define CMD_BLOCK_WRITE    0x0C
 #define CMD_WRITE_COMPLETE 0x0D
 #define CMD_SET_CONDITION  0x0E
+#define CMD_GAMEID         IBLUE_GAMEID_CMD /* 0x21: the game id from openMenu, see system/iblue_gameid.h */
 
 #define ADDR_MASK   0x3F
 #define ADDR_MAIN   0x20
@@ -589,8 +590,36 @@ maple_end:
                                 memcpy((void *)&pkt.data32[4], vmu_area_dir_name, sizeof(vmu_area_dir_name));
                                 memcpy((void *)&pkt.data32[12], brand, sizeof(brand));
                                 pkt.data32[27] = PWR_VMU;
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+                                if (cmd == CMD_EXT_INFO_REQ) {
+                                    /* All info: the same 28 words, then 40 bytes "extended" and 40 bytes free (a real VMU
+                                     * leaves them empty). openMenu reads the first 16 bytes of "extended" to find the
+                                     * devices it may send the game id to (VM2, VMU Pro, USB4Maple, Pico2Maple, and this). */
+                                    pkt.len = 48;
+                                    pkt.cmd = CMD_EXT_INFO_RSP;
+                                    memset((void *)&pkt.data32[28], 0, 80);
+                                    iblue_gameid_ext_name((void *)&pkt.data32[28]);
+                                }
+#endif
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 break;
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+                            case CMD_GAMEID:
+                                /* The game id, as sent by openMenu to VM2-class devices: function code, then 12 bytes of id
+                                 * (then optionally the game's name, not used). The answer is an acknowledge. */
+                                if (func.val == ID_VMU_MEM && len >= 4) {
+                                    uint8_t gid[IBLUE_GAMEID_LEN];
+
+                                    for (uint32_t i = 0; i < IBLUE_GAMEID_LEN; i++) {
+                                        gid[i] = maple_fix_byte(bad_frame, pkt.data[i + 7], pkt.data[i + 8]);
+                                    }
+                                    iblue_gameid_set_wire(gid);
+                                }
+                                pkt.len = 0x00;
+                                pkt.cmd = CMD_ACK;
+                                maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+                                break;
+#endif
                             case CMD_GET_CONDITION:
                             case CMD_MEM_INFO_REQ:
                                 pkt.cmd = CMD_DATA_TX;
@@ -619,12 +648,7 @@ maple_end:
                                 if (phase) {
                                     ets_printf("RD ERR phase: %d, expected 0\n", phase);
                                 }
-                                if (iblue_gameid_owns(block_no)) {
-                                    iblue_gameid_read((void *)&pkt.data32[2]);
-                                }
-                                else {
-                                    mc_read(block_no * VMU_BLOCK_SIZE, (void *)&pkt.data32[2], VMU_BLOCK_SIZE);
-                                }
+                                mc_read(block_no * VMU_BLOCK_SIZE, (void *)&pkt.data32[2], VMU_BLOCK_SIZE);
                                 crc = maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 // ets_printf("R: %02X %d %02X\n", block_no, phase, crc);
                                 break;
@@ -644,18 +668,11 @@ maple_end:
                                     if (bad_frame) {
                                         for (uint32_t i = 0; i < 128; i++) {
                                             uint8_t mc_data = maple_fix_byte(bad_frame, pkt.data[i + 11], pkt.data[i + 12]);
-                                            if (!iblue_gameid_owns(block_no)) {
-                                                mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase) + i, &mc_data, 1);
-                                            }
+                                            mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase) + i, &mc_data, 1);
                                         }
                                     }
                                     else {
-                                        if (iblue_gameid_owns(block_no)) {
-                                            iblue_gameid_write(phase, (void *)&pkt.data32[2]);
-                                        }
-                                        else {
-                                            mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase), (void *)&pkt.data32[2], 128);
-                                        }
+                                        mc_write((block_no * VMU_BLOCK_SIZE) + (128 * phase), (void *)&pkt.data32[2], 128);
                                     }
                                 }
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
