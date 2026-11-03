@@ -1,5 +1,7 @@
 # BlueRetro for the iBlueControlMod (Dreamcast)
 
+> **Part of the DC- Dreamcast family** (branch `unified`): [DC-DreamDash](https://github.com/blaskkaffe/DC-DreamDash/tree/unified) · [DC-PicoLink](https://github.com/blaskkaffe/DC-PicoLink/tree/unified) · [DC-iBlueControlMod](https://github.com/blaskkaffe/DC-iBlueControlMod/tree/unified) · [DC-BlueRetro](https://github.com/blaskkaffe/DC-BlueRetro/tree/unified) · [DC-openMenu-Virtual-Folder-Bundle](https://github.com/blaskkaffe/DC-openMenu-Virtual-Folder-Bundle/tree/unified). They work alone and together. The shared plan, feature list, vocabulary and licenses overview are in [docs/unified/](docs/unified/README.md).
+
 Open-source firmware for the **iBlueControlMod**, the internal Bluetooth controller adapter for the SEGA Dreamcast sold on AliExpress and elsewhere. It's a fork of [BlueRetro](https://github.com/darthcloud/BlueRetro) by Jacques Gagnon (darthcloud), adapted to this board's wiring.
 
 The board runs a modified BlueRetro v1.9 from the factory, but its pins differ from official BlueRetro hardware. Flashing a stock BlueRetro image misdrives the button, LEDs and port detection, and can make the board look bricked. This fork maps every pin the way the vendor firmware does, so it's safe to flash on this hardware. It's based on the final upstream BlueRetro, which brings newer controller support and fixes.
@@ -113,8 +115,12 @@ The full write-up, with every difference, the community findings and recovery op
 
 ## Credits and license
 
-- **BlueRetro** © Jacques Gagnon ([darthcloud/BlueRetro](https://github.com/darthcloud/BlueRetro)), Apache-2.0. Upstream is now archived; its original README is kept in [docs/README_BlueRetro_upstream.md](docs/README_BlueRetro_upstream.md), and the [BlueRetro wiki](https://github.com/darthcloud/BlueRetro/wiki) still documents the general features.
-- The pin mapping was cross-checked against [BlueRetro discussion #1183](https://github.com/darthcloud/BlueRetro/discussions/1183) (darthcloud, zeus86 and others).
-- This fork is released under the same Apache-2.0 license (see [LICENSE](LICENSE)).
+- **License: Apache License 2.0**, see [LICENSE](LICENSE). This fork keeps BlueRetro's license; the copyright notices of the upstream files (Copyright (c) 2019-2025 Jacques Gagnon) stay in place, and changes are marked in the git history.
+- **BlueRetro** © Jacques Gagnon ([darthcloud/BlueRetro](https://github.com/darthcloud/BlueRetro)), Apache-2.0. Upstream is now archived; its original README is kept in [docs/README_BlueRetro_upstream.md](docs/README_BlueRetro_upstream.md). (BlueRetro's hardware designs are CERN-OHL-P-2.0 upstream; no hardware files are in this repository.)
+- **Web config** (`web/`): a fork of [BlueRetroWebCfg](https://github.com/darthcloud/BlueRetroWebCfg), Apache-2.0 (Jacques Gagnon and the Google Chrome Samples authors it is based on). Its license is `web/LICENSE`, what changed is listed in `web/NOTICE.md`. It bundles **sql.js** (MIT, © 2017 sql.js authors, `web/sql.js/LICENSE`).
+- **BlueRetro logos** in `static/` are Copyright (c) 2022 Humble Bazooka, **CC BY-ND 4.0** (`static/LICENSE`): they may be shared unchanged, not modified.
+- The firmware is built with **ESP-IDF** (Apache-2.0) and the libraries BlueRetro uses; see their repositories.
+- The pin mapping was cross-checked against [BlueRetro discussion #1183](https://github.com/darthcloud/BlueRetro/discussions/1183) (darthcloud, zeus86 and others). The vendor firmware was only analysed (disassembled and compared); it is not part of this repository.
+- The documents in [docs/unified/](docs/unified/README.md) are covered by the same Apache-2.0 license. For the licenses of the other repositories in the family see the table there.
 
 This project is not affiliated with the iBlueControlMod vendor or with SEGA. Flash at your own risk, and keep a backup.
