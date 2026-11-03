@@ -17,7 +17,8 @@ Why this exists: two branches and one other repository each picked `0x4B` (Joy-C
 | **0x47-0x4A** | LED / boot animation settings: get, set, play now, defaults | no, **reserved** | branch `claude/integration` |
 | **0x4B-0x4F** | Joy-Con motion (maracas): get settings, set settings, pose, status, forget calibration | no, **reserved** | branch `claude/integration` |
 | **0x50** | `GET_PORT_STATUS` (read only; answer below) | no, **reserved, not written** | DC-DreamDash `claude/iblue-ports` used `0x4B` for it: must use `0x50` |
-| **0x51-0x59** | more port / status commands | **reserved** | |
+| **0x51** | `API`: the DC API text tunnel (write the request text, read the answer; see the shared document `04-control-channel.md`) | no, **reserved, draft** | |
+| **0x52-0x59** | more port / status commands | **reserved** | |
 | 0x5A | BlueRetro: OTA end | yes | upstream |
 | 0xA5, 0xDE | BlueRetro: OTA start, OTA abort | yes | upstream |
 
@@ -33,7 +34,8 @@ Numbers not listed (0x08-0x0F, 0x15-0x36, 0x3A-0x3F, 0x5B-0xA4, 0xA6-0xDD, 0xDF-
 | 3 | 0x08 | LED / animation settings (0x47-0x4A) | reserved (`claude/integration`) |
 | 4 | 0x10 | Joy-Con motion (0x4B-0x4F) | reserved (`claude/integration`) |
 | **5** | **0x20** | **port status (0x50)** | reserved, not written |
-| 6-7 | | reserved | |
+| **6** | 0x40 | the DC API tunnel (0x51) | reserved, draft |
+| 7 | 0x80 | reserved | |
 
 A client must check the bit before using a command and must ignore bits it does not know.
 

@@ -48,7 +48,8 @@
  *   0x47-0x4A  LED / animation settings        feature bit 3
  *   0x4B-0x4F  Joy-Con motion (maracas)        feature bit 4
  *   0x50       get port status                 feature bit 5
- *   0x51-0x59  more port / status commands
+ *   0x51       DC API text tunnel (draft)     feature bit 6
+ *   0x52-0x59  more port / status commands
  * 0x5A is BlueRetro's own (OTA end). */
 #define IBLUE_FEAT_GESTURES 0x01      /* info features: bit0 tap gestures */
 #define IBLUE_FEAT_PROFILES 0x02      /* bit1 profiles */
