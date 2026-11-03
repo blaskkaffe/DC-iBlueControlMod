@@ -2,37 +2,33 @@
 
 Goal: play Samba de Amigo with two Wii remotes or two Joy-Cons (or one DualShock / DualSense) instead of the real maracas, by sensing the angle and shaking of each controller and reporting it to the Dreamcast as a maracas controller. Status: **research and concept only, nothing is built.** Written 2026-11-01.
 
-## What the Dreamcast sees (facts, with sources)
+## What the Dreamcast sees (Sega's maracas spec)
 
-The maracas are an ordinary Dreamcast **controller function** (FT0) device with a different capability word and name. From Flycast's emulation of them (`core/hw/maple/maple_devs.cpp`, `maple_maracas_controller`), read 2026-11-01:
+The facts below are from **Sega's own "Maple Bus 1.0 Peripheral Hardware Specifications: Maracas Controller", Rev 0.99, 1 March 2000**, which is in the public `Kochise/dreamcast-docs` repository (`CONTROLR/DOCS/14_marah099e.doc`), read 2026-11-03. It settles what earlier notes (Flycast, dreamcast.wiki) could only guess. Only facts about the interface are used here.
 
-| | Value |
-|---|---|
-| Name | "Maracas Controller" |
-| Capability word | `0x0f093c00` as Flycast stores it, the same form as the standard pad's `0xfe060f00`; on the wire (the form `maple.c` uses) that is **`0x003C090F`** (derived by byte reversal, not seen on a real unit) |
-| Analog axes | four: axes 2 to 5, the same slots as the standard pad's stick X, Y and a second stick X, Y (in this firmware: `AXIS_LX`, `AXIS_LY`, `AXIS_RX`, `AXIS_RY`) |
-| Buttons advertised | C, B, A, Start, Z, D (no d-pad, no X, Y) |
-| Current | 100 mA standby, 130 mA max |
+**The maracas are a normal controller function (FT0) with a position given as analog coordinates and the rest as buttons.**
 
-What the buttons and axes mean, from dreamcast.wiki's Maracas page (left maraca / right maraca):
-
-| | Left | Right |
+| | Left maraca | Right maraca |
 |---|---|---|
-| Position | analog axes of the left maraca | analog axes of the right maraca |
-| Shake | B | A |
-| Button | C | Start |
-| "Connection loss" signal | D | Z |
+| Position | analog axes A3 and A4 = **Xa, Ya** | analog axes A5 and A6 = **Xb, Yb** |
+| Shake switch | B | A |
+| Button on top | C | Start |
+| "Lost flag" | D | Z |
 
-Flycast gives each maraca two axes (left maraca = axes 2 and 3, right = 4 and 5) and feeds them from the two thumbsticks. After a reset the real maracas run an ultrasonic timing adjustment, 4, 5, 6 or 7 s on port A, B, C or D, during which buttons are off, positions fixed and the connection loss signal is on. The game also sends a SetCondition with the ultrasonic settings (an analog update interval of 2 for Samba de Amigo); Flycast does not implement it and the game still runs.
+- **Position is analog, not buttons.** Each maraca is an (X, Y) pair, each 00h to FFh, the current position (no initial value). It is found by ultrasound: each maraca has an emitter, two sensors sit at the ends of a base unit on the floor, and the travel times to the two sensors give X and Y (two circles intersected). So X is left to right along the base unit and **Y is how far the maraca is from the sensor line, which for a player holding the maracas above the base is the height**. A forum post puts (0, 0) at the bottom left and (255, 255) at the top right. The range is a distorted circle, not the full square, and varies with the room.
+- **Shake is a button**: the shake switch is ON ('0', pressed) while the maraca is being shaken and OFF ('1') when it is still. The button on top is pressed when pressed.
+- **The lost flag**: D (left) and Z (right) are OFF ('1', released) while the maraca is inside the measuring range and ON ('0', pressed) when it is outside the range or the coordinate overflows. When it is ON, X and Y are undefined.
+- **After power-on or a reset** the maracas adjust their ultrasonic timing: **4 s on port A, 5 s on B, 6 s on C, 7 s on D** (240, 300, 360, 420 Get Condition polls). During that time the buttons are off, both maracas sit at (80h, 80h) and the lost flags are ON. Flycast reports the game only recognises the maracas **on port A or B**.
+- **Identity** (matches the output mode in this firmware): device ID 00 00 00 01, 00 3C 09 0F (so the capability word is `0x003C090F`: four analog axes, buttons A, B, C, D, Z, Start), area code FFh, product name "Maracas Controller", licence "Produced By or Under License From SEGA ENTERPRISES,LTD.", standby 100 mA, max 130 mA, and a free device status of two 40 byte lines: "Version 1.010,2000/02/03,315-6211-AS   ," and "Attention : D,Z button is Lost Flag. nyo".
+- **Set Condition** (used by Sega's maracas library, not needed for one controller): sets the ultrasonic emission interval (the number of controllers, at least 2 when two are used) and the emission counter (0 for the first controller, 1 for the second), and some factory values that must not change. Flycast does not implement it and the game runs.
+- **Reading it**: a Get Condition returns the two button bytes, two bytes of analog axis 1 (the trigger pair, unused), then A3, A4, A5, A6 as Xa, Ya, Xb, Yb. The measurement of both maracas is done within 16.6 ms of the poll.
 
-The real maracas measure position with an ultrasonic receiver (the "sensor bar" on the floor or the TV) and detect shakes with a sensor in each maraca. Real units report **position (about three heights: high, middle, low) and a shake button**; the game needs nothing else.
-
-**Not known yet** (needs a capture from real maracas, or someone who has one): which of each maraca's two axes carries the height, the value range of high, middle and low, whether the game cares about the connection loss signal being off from the start, and whether it checks the name or the capability word.
+**What is still not known** (the spec does not say): how the game turns Y into its three heights (the thresholds), whether it reads X, and whether it waits for the lost flags to go off at the start. Only a try with the game tells.
 
 ## What the adapter has to do
 
 1. **Output mode "Maracas"**: capability word `0x003C090F`, name "Maracas Controller", the condition packet of the pad with the four axes (the same as GamePadAlt's sticks) and only the buttons C, B, A, Start, Z, D. A new `dev_mode` next to Racing in `maple.c` and `dc.c`; selectable on the web page and per game through the game id. Small.
-2. **Connection loss**: report D and Z released from the start (Flycast does), or hold them for the 4 to 7 s the real ones do if a test shows the game wants it.
+2. **Lost flag**: report D and Z released (the maraca is in range) once there is data; optionally behave like the real thing for the first 4 to 7 s (positions 80h, 80h, flags ON) if the game turns out to want it.
 3. **Input**: turn the motion of each controller into the two axes and the shake button of one maraca. This is the new work, see below.
 
 ## Where the motion comes from (what BlueRetro reads today)
@@ -47,7 +43,7 @@ Two controllers as two maracas: BlueRetro already runs several Bluetooth control
 
 ## Turning motion into the maraca (design)
 
-- **Height from the angle**: the gravity vector from the accelerometer gives the tilt (pitch). Pointing up is high, level is middle, pointing down is low. The three bands have a dead zone between them so the value does not flicker; the axis is set to a fixed value per band (or a smooth value of the pitch if the game accepts it), to be found by test.
+- **Height from the angle**: the gravity vector from the accelerometer gives the tilt (pitch). The game reads a continuous Y (00h bottom to FFh top, 80h about the middle), so the pitch is turned into Y smoothly (pointing up about FFh, level about 80h, pointing down about 00h), with a little smoothing so it does not flicker; X can stay at 80h or follow the roll. The game decides the three heights itself.
 - **Shake**: the size of the change in acceleration crossing a threshold sets the shake button (B left, A right) for a short, fixed time (about 50 to 80 ms), with a short lockout so one shake is one press. The threshold and the hold time are settings.
 - **Latency**: a rhythm game is sensitive to it. Bluetooth reports come at about 100 Hz (Wii remote), 60 Hz (Joy-Con in the default mode) or 250 Hz (DualSense); a shake can be seen within one or two reports (10 to 30 ms). The existing adapter latency adds to that. The shake press should be sent in the next Maple poll after it is seen.
 - **Settings on the web page**: which controller is left and right (the first to connect is left unless swapped), tilt bands, shake threshold, press time, axis values per band.
@@ -58,7 +54,7 @@ Joy-Cons are the best source: each has a 3-axis accelerometer and a gyro, and tw
 
 ## Phases
 
-1. **(Built, untried with the game.) Output mode Maracas with sticks** (Flycast's way): the descriptor, name, buttons, and a preset mapping the left stick to the left maraca and the right stick to the right, B and A on two buttons. No motion. Small; shows what the game accepts and answers the open questions (which axis is the height, the value range, the connection loss signal). **Do this first.**
+1. **(Built, untried with the game.) Output mode Maracas with sticks** (Flycast's way): the descriptor, name, power, and a preset mapping the left stick to the left maraca and the right stick to the right (stick up = high: the Y axes are turned around), L1 / R1 = shake B / A, L2 = C, R2 / Start = Start. No motion. Small; shows what the game accepts and answers the open questions (which axis is the height, the value range, the connection loss signal). **Do this first.**
 2. **One motion source**: parse the DualSense or Joy-Con motion (the simpler report), tilt to height and shake to button, one controller as one maraca; tune on the real game.
 3. **Two controllers, one output**: the "left and right" rule, then the Wii remote.
 4. **Polish**: settings on the web page, per-game selection through the game id, a preset on the presets page.

@@ -22,7 +22,7 @@ export const dcPresets = [
     { name: 'Racing controller', mode: 4, map: true,
       text: 'The Dreamcast racing controller: A, B, Start, d-pad, steering (left stick), accelerator (R2) and brake (L2). No X and Y. Not tried on a console yet.' },
     { name: 'Samba de Amigo maracas', mode: 5, map: 'maracas',
-      text: "A first step with the sticks: the left stick is the left maraca, the right stick the right one; L1 / R1 shake left / right (B / A), L2 is the left maraca's button C, R2 and Start are Start. Height from the stick for now; tilt and shake from Joy-Cons is planned. Not tried with the game yet." },
+      text: "A first step with the sticks: each stick is the position of one maraca (the left stick the left maraca), stick up is high. L1 / R1 shake left / right (B / A), L2 is the left maraca's button C, R2 and Start are Start. Tilt and shake from Joy-Cons is planned. Use port A or B. Not tried with the game yet." },
     { name: 'Keyboard', mode: 2, map: false, text: 'A Dreamcast keyboard. The mapping of the output is kept.' },
     { name: 'Mouse', mode: 3, map: false, text: 'A Dreamcast mouse. The mapping of the output is kept.' },
 ];
@@ -34,8 +34,14 @@ const $ = (id) => document.getElementById(id);
 function maracasMap(def) {
     const entry = (src, dst) => [src, dst, 0, 100, 50, 135, 0, 0, 0];
 
+    /* def[0..7]: LX left, LX right, LY down, LY up, RX left, RX right, RY down, RY up. X is as on a pad (left 0, right 255).
+     * Y is the height: the maracas report 255 at the top, a pad reports 0 for up, so up and down swap places. */
+    const turn = (e, to) => [e[0], to, ...e.slice(2)];
+
     return [
-        ...def.slice(0, 8),                       /* the two sticks, as they are */
+        def[0], def[1], def[4], def[5],            /* the X axes as they are */
+        turn(def[2], 'PAD_LY_UP'), turn(def[3], 'PAD_LY_DOWN'),
+        turn(def[6], 'PAD_RY_UP'), turn(def[7], 'PAD_RY_DOWN'),
         entry('PAD_LS', 'PAD_RB_RIGHT'),          /* L1 = shake left (B) */
         entry('PAD_RS', 'PAD_RB_DOWN'),           /* R1 = shake right (A) */
         entry('PAD_LM', 'PAD_RS'),                /* L2 = button C of the left maraca */
