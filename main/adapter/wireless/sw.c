@@ -11,6 +11,7 @@
 #include "tests/cmds.h"
 #include "bluetooth/mon.h"
 #include "sw.h"
+#include "iblue/iblue_motion_ctl.h"
 
 #define BT_HIDP_SW_SUBCMD_SET_LED 0x30
 #define SW_AXES_MAX 4
@@ -395,6 +396,12 @@ static int32_t sw_pad_init(struct bt_data *bt_data) {
         bt_data->base.axes_cal[i] = 0;
     }
 
+#ifdef CONFIG_BLUERETRO_IBLUE_MOTION
+    if (iblue_motion_ctl_mode() && report_type &&
+        (bt_data->base.pids->subtype == BT_SW_LEFT_JOYCON || bt_data->base.pids->subtype == BT_SW_RIGHT_JOYCON)) {
+        bt_data->raw_src_mappings[PAD].mask[0] |= BIT(PAD_LT); /* the shake */
+    }
+#endif
     atomic_set_bit(&bt_data->base.flags[PAD], BT_INIT);
     return 0;
 }
@@ -447,6 +454,27 @@ static int32_t sw_native_to_generic(struct bt_data *bt_data, struct wireless_ctr
         ctrl_data->axes[i].meta = &meta[i];
         ctrl_data->axes[i].value = axes[i] - meta[i].neutral;
     }
+#ifdef CONFIG_BLUERETRO_IBLUE_MOTION
+    /* Joy-Con motion: the position becomes the right stick, the shake the left trigger button (docs/samba-de-amigo.md) */
+    if (iblue_motion_ctl_mode() && bt_data->base.input_len >= IBLUE_MOTION_IMU_OFFSET + IBLUE_MOTION_IMU_LEN &&
+        (bt_data->base.pids->subtype == BT_SW_LEFT_JOYCON || bt_data->base.pids->subtype == BT_SW_RIGHT_JOYCON)) {
+        int16_t mx, my;
+        int shake;
+
+        if (iblue_motion_ctl_feed(bt_data->base.pids->id,
+                bt_data->base.pids->subtype == BT_SW_LEFT_JOYCON ? -1 : 1,
+                bt_data->base.input + IBLUE_MOTION_IMU_OFFSET,
+                (ctrl_data->btns[0].value & BIT(PAD_MS)) != 0, &mx, &my, &shake)) {
+            ctrl_data->axes[2].meta = &meta[2];
+            ctrl_data->axes[2].value = mx;
+            ctrl_data->axes[3].meta = &meta[3];
+            ctrl_data->axes[3].value = my;
+            if (shake) {
+                ctrl_data->btns[0].value |= BIT(PAD_LT);
+            }
+        }
+    }
+#endif
     return 0;
 }
 

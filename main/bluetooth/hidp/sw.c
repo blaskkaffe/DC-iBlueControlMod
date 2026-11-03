@@ -14,6 +14,14 @@
 
 //#define SW_DISABLE_SHIP_EN
 //#define SW_SET_NATIVE_EN
+#ifdef CONFIG_BLUERETRO_IBLUE_MOTION
+/* Joy-Con motion: the native report (0x30) carries the accelerometer and the gyro; both steps are skipped at run time
+ * when motion mode is off or the controller is not a Joy-Con (docs/samba-de-amigo.md). */
+#define SW_SET_NATIVE_EN
+#define SW_ENABLE_IMU_EN
+#define SW_MOTION_STEPS
+#include "iblue/iblue_motion_ctl.h"
+#endif
 //#define SW_TRIGGER_TIME_EN
 //#define SW_ENABLE_IMU_EN
 //#define SW_SET_MCU_CFG_EN
@@ -110,7 +118,21 @@ void bt_hid_sw_get_calib(int32_t dev_id, struct bt_hid_sw_ctrl_calib **cal) {
     }
 }
 
+#ifdef SW_MOTION_STEPS
+static int sw_motion_wanted(struct bt_dev *device) {
+    return iblue_motion_ctl_mode() &&
+        (device->ids.subtype == BT_SW_LEFT_JOYCON || device->ids.subtype == BT_SW_RIGHT_JOYCON);
+}
+#endif
+
 static void bt_hid_sw_exec_next_state(struct bt_dev *device) {
+#ifdef SW_MOTION_STEPS
+    /* the report mode and the IMU are only for motion mode: go on to the next step */
+    while ((device->hid_state == SW_INIT_STATE_SET_NATIVE || device->hid_state == SW_INIT_STATE_ENABLE_IMU) &&
+           !sw_motion_wanted(device)) {
+        device->hid_state++;
+    }
+#endif
     switch(device->hid_state) {
         case SW_INIT_STATE_READ_INFO:
         {
@@ -419,6 +441,18 @@ void bt_hid_sw_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, ui
                             bt_hid_sw_exec_next_state(device);
                             break;
                         }
+#ifdef SW_MOTION_STEPS
+                        case BT_HIDP_SW_SUBCMD_SET_REP_MODE:
+                        {
+                            if (device->hid_state == SW_INIT_STATE_SET_NATIVE) {
+                                esp_timer_restart(device->timer_hdl, 100000);
+                                printf("# BT_HIDP_SW_SUBCMD_SET_REP_MODE\n");
+                                device->hid_state++;
+                                bt_hid_sw_exec_next_state(device);
+                            }
+                            break;
+                        }
+#endif
                         case BT_HIDP_SW_SUBCMD_ENABLE_IMU:
                         {
                             esp_timer_restart(device->timer_hdl, 100000);

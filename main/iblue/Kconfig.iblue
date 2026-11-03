@@ -108,6 +108,15 @@ menu "iBlueControlMod and Dreamcast extras"
             VMU (never stored as VMU data). It becomes BlueRetro's game id, so blueretro.io can save
             a configuration per game. Needs the VMU accessory on. See docs/led-and-gameid.md.
 
+    config BLUERETRO_IBLUE_MOTION
+        bool "iBlueControlMod: Joy-Con motion as maracas position and shake"
+        depends on BLUERETRO_SYSTEM_DC && BLUERETRO_HW_IBLUECONTROLMOD && BLUERETRO_IBLUE_RGB_LED
+        default y
+        help
+            Reads the accelerometer and the gyro of Joy-Cons (switched on from the web page) and turns the
+            pointing direction into the right stick X / Y of the controller and a shake into the left
+            trigger button, for Samba de Amigo (docs/samba-de-amigo.md). Calibrated with poses.
+
     config BLUERETRO_IBLUE_DC_MENU_COLORS
         bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"
         depends on BLUERETRO_HW_IBLUECONTROLMOD
