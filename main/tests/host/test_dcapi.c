@@ -26,10 +26,10 @@ static void game(const char *id) {
 
 int main(void) {
     CHECK(IBLUE_DCAPI_CMD == 0x22);
-    CHECK(IBLUE_DCAPI_CAPS == 0x23);                         /* api, net, game */
+    CHECK(IBLUE_DCAPI_CAPS == 0x2B);                         /* api, net, port, game */
 
     SAME(ask("dc1\nget hello\n"),
-         "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version unknown\nok hello.api 1\nok hello.caps api,net,game\n");
+         "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version unknown\nok hello.api 1\nok hello.caps api,net,port,game\n");
     iblue_dcapi_init("v0.8-12-g1a2b3c4 dirty");
     SAME(ask("dc1\nid 17\nget hello.version\n"), "dc1\nid 17\nok hello.version v0.8-12-g1a2b3c4_dirty\n");
 
@@ -48,14 +48,50 @@ int main(void) {
     SAME(ask("dc1\nset net.selected dcnow\nget net.*\n"), "dc1\nok net.selected dcnow\nok net.selected dcnow\n");
     SAME(ask("dc1\nset net.selected pizza\nget net.selected\n"), "dc1\nerr net.selected range dcnow or dcnet\nok net.selected dcnow\n");
     game("DC_TEST");
-    SAME(ask("dc1\nget *\n"), "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version v0.8-12-g1a2b3c4_dirty\nok hello.api 1\nok hello.caps api,net,game\nok game.id DC_TEST\nok net.selected dcnow\n");
-    SAME(ask("dc1\nget game.*\nget hello.c*\n"), "dc1\nok game.id DC_TEST\nok hello.caps api,net,game\n");
+    SAME(ask("dc1\nget *\n"), "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version v0.8-12-g1a2b3c4_dirty\nok hello.api 1\nok hello.caps api,net,port,game\nok game.id DC_TEST\nok net.selected dcnow\n");
+    SAME(ask("dc1\nget game.*\nget hello.c*\n"), "dc1\nok game.id DC_TEST\nok hello.caps api,net,port,game\n");
+
+    /* ports: nothing until the firmware says how many the board has */
+    SAME(ask("dc1\nget port.A.state\nget port.*\n"), "dc1\nerr port.A.state unavailable no such port\nerr port.* unknown\n");
+    iblue_dcapi_port_count(2);
+    iblue_dcapi_port_set(0, IBLUE_PORT_BT, 0, 1, 7, 3);                        /* A: a Bluetooth controller, normal, VMU */
+    iblue_dcapi_port_set(1, IBLUE_PORT_EMPTY, 3, 0, 0, 0);                     /* B: nothing, configured as mouse */
+    SAME(ask("dc1\nget port.A.state\nget port.A.mode\nget port.A.acc\nget port.A.name\n"),
+         "dc1\nok port.A.state bt\nok port.A.mode normal\nok port.A.acc vmu\nok port.A.name Controller\n");
+    SAME(ask("dc1\nget port.B.*\n"), "dc1\nok port.B.state empty\nok port.B.mode mouse\nok port.B.acc none\nok port.B.name Mouse\n");
+    SAME(ask("dc1\nget port.C.state\nget port.E.state\nget port.A.colour\n"),
+         "dc1\nerr port.C.state unavailable no such port\nerr port.E.state unknown\nerr port.A.colour unknown\n");
+    SAME(ask("dc1\nget port.A.peer\n"), "dc1\nerr port.A.peer unavailable none\n");
+    CHECK(strstr(ask("dc1\nget port.*\n"), "ok port.A.state bt\nok port.A.mode normal") != NULL);
+    CHECK(strstr(ask("dc1\nget port.*\n"), "peer") == NULL);                 /* a key without a value is left out of a list */
+    /* the peer hint: the one who knows says what is on a wired port */
+    SAME(ask("dc1\nset port.B.peer pico2maple\nget port.B.state\nget port.B.peer\n"),
+         "dc1\nok port.B.peer pico2maple\nok port.B.state wired\nok port.B.peer pico2maple\n");
+    SAME(ask("dc1\nset port.B.peer none\nget port.B.state\n"), "dc1\nok port.B.peer none\nok port.B.state empty\n");
+    SAME(ask("dc1\nset port.B.peer bad/name\n"), "dc1\nerr port.B.peer range letters digits - _ up to 11 characters or none\n");
+    SAME(ask("dc1\nset port.B.peer abcdefghijkl\n"), "dc1\nerr port.B.peer range letters digits - _ up to 11 characters or none\n");
+    SAME(ask("dc1\nset port.C.peer x\n"), "dc1\nerr port.C.peer unavailable no such port\n");
+    SAME(ask("dc1\nset port.A.mode dual\nset port.A.state wired\n"), "dc1\nerr port.A.mode readonly\nerr port.A.state readonly\n");
+    iblue_dcapi_port_count(9);                                                    /* more than the engine has is cut to 4 */
+    CHECK(strstr(ask("dc1\nget port.D.state\n"), "ok port.D.state") != NULL);
+    iblue_dcapi_port_count(2);
+    iblue_dcapi_port_set(7, 1, 1, 1, 1, 1);                                       /* a port that does not exist is ignored */
+    {
+        uint8_t st[32];
+        iblue_dcapi_handle("dc1\nset port.A.peer rig\n", 24, ans, sizeof(ans));
+        size_t n = iblue_dcapi_port_status(st);
+        CHECK(n == 11);                                                           /* count + 2 x 5 bytes */
+        CHECK(st[0] == 2 && st[1] == 2 && st[2] == 0 && st[3] == 1 && st[4] == 7 && st[5] == 3);   /* A: wired (peer), normal, vmu, bt 7/3 */
+        CHECK(st[6] == IBLUE_PORT_EMPTY && st[7] == 3 && st[8] == 0);             /* B */
+        iblue_dcapi_handle("dc1\nset port.A.peer none\n", 25, ans, sizeof(ans));
+    }
+    SAME(ask("dc1\nget hello.api\n"), "dc1\nok hello.api 1\n");
 
     /* read only, unknown, and one bad line does not spoil the rest */
-    SAME(ask("dc1\nset game.id X\nset hello.name x\nset port.A.mode dual\n"),
-         "dc1\nerr game.id readonly\nerr hello.name readonly\nerr port.A.mode unknown\n");
-    SAME(ask("dc1\nget port.A.mode\nfrobnicate x\ncall sys.reset\nget net.selected\n"),
-         "dc1\nerr port.A.mode unknown\nerr frobnicate unknown\nerr sys.reset unknown\nok net.selected dcnow\n");
+    SAME(ask("dc1\nset game.id X\nset hello.name x\nset led.colour red\n"),
+         "dc1\nerr game.id readonly\nerr hello.name readonly\nerr led.colour unknown\n");
+    SAME(ask("dc1\nget led.colour\nfrobnicate x\ncall sys.reset\nget net.selected\n"),
+         "dc1\nerr led.colour unknown\nerr frobnicate unknown\nerr sys.reset unknown\nok net.selected dcnow\n");
     SAME(ask("dc1\nget events since=0\n"), "dc1\nerr events unavailable not implemented\n");
 
     /* bad requests, blank lines, CRLF, padding */
@@ -123,7 +159,7 @@ int main(void) {
         iblue_dcapi_ext_caps(wire);
         for (int w = 0; w < 24; w += 4)
             for (int j = 0; j < 4; j++) mem[w + j] = wire[w + 3 - j];
-        CHECK(memcmp(mem, "dc1 00000023", 12) == 0);
+        CHECK(memcmp(mem, "dc1 0000002b", 12) == 0);
         CHECK(mem[12] == 0 && mem[23] == 0);
     }
 

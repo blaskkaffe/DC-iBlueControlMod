@@ -16,7 +16,7 @@ Why this exists: two branches and one other repository each picked `0x4B` (Joy-C
 | **0x43-0x46** | `GET_PROFILE`, `PROFILE_SAVE`, `PROFILE_LOAD`, `PROFILE_DELETE` | yes | |
 | **0x47-0x4A** | LED / boot animation settings: get, set, play now, defaults | no, **reserved** | branch `claude/integration` |
 | **0x4B-0x4F** | Joy-Con motion (maracas): get settings, set settings, pose, status, forget calibration | no, **reserved** | branch `claude/integration` |
-| **0x50** | `GET_PORT_STATUS` (read only; answer below) | no, **reserved, not written** | DC-DreamDash `claude/iblue-ports` used `0x4B` for it: must use `0x50` |
+| **0x50** | `GET_PORT_STATUS` (read only; answer below) | **written** (with `CONFIG_BLUERETRO_IBLUE_DCAPI`), not built with ESP-IDF | DC-DreamDash `claude/iblue-ports` used `0x4B` for it: must use `0x50` |
 | **0x51** | `API`: the DC API text tunnel. Write `0x51`, a flags byte (bit 0 = first chunk, bit 1 = last chunk), then up to 20 bytes of request text; after the last chunk read: byte 0 = 1 when more of the answer follows (read again), 0 = last chunk, then up to 22 bytes of answer text. See [dcapi.md](dcapi.md) | **written** (`CONFIG_BLUERETRO_IBLUE_DCAPI`), host-tested engine, not built with ESP-IDF | |
 | **0x52-0x59** | more port / status commands | **reserved** | |
 | 0x5A | BlueRetro: OTA end | yes | upstream |
@@ -33,7 +33,7 @@ Numbers not listed (0x08-0x0F, 0x15-0x36, 0x3A-0x3F, 0x5B-0xA4, 0xA6-0xDD, 0xDF-
 | 2 | 0x04 | Dreamcast game id from openMenu (Maple command `0x21`) | yes (with `BLUERETRO_IBLUE_GAMEID`) |
 | 3 | 0x08 | LED / animation settings (0x47-0x4A) | reserved (`claude/integration`) |
 | 4 | 0x10 | Joy-Con motion (0x4B-0x4F) | reserved (`claude/integration`) |
-| **5** | **0x20** | **port status (0x50)** | reserved, not written |
+| **5** | **0x20** | **port status (0x50)** | written, not built |
 | **6** | 0x40 | the DC API tunnel (0x51) | written, not built |
 | 7 | 0x80 | reserved | |
 
@@ -41,7 +41,7 @@ A client must check the bit before using a command and must ignore bits it does 
 
 ## `GET_PORT_STATUS` (0x50), as DC-DreamDash's module expects it
 
-Read only. Answer: `[count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]`, five bytes per port. `state`: 0 empty, 1 Bluetooth (a controller with finished HID setup is mapped to the port), 2 wired (the port's sense line is pulled to ground, the same test the firmware uses to skip that port when it hands out Bluetooth slots). `dev_mode` and `acc_mode` are the configured output mode and accessory mode (BlueRetro's `out_cfg`). **Not implemented yet**: it needs the wired-sense and Bluetooth state from the adapter code, which can only be written and tried with ESP-IDF and a board.
+Read only. Answer: `[count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]`, five bytes per port. `state`: 0 empty, 1 Bluetooth (a controller with finished HID setup is mapped to the port), 2 wired (the port's sense line is pulled to ground, the same test the firmware uses to skip that port when it hands out Bluetooth slots). `dev_mode` and `acc_mode` are the configured output mode and accessory mode (BlueRetro's `out_cfg`). **Written, not built or tried**: the state comes from a snapshot that `manager.c` refreshes (see [dcapi.md](dcapi.md)). On the iBlue board there is no sense line, so `wired` appears only through the DC API's `port.<X>.peer` hint.
 
 ## What the other repository has to change when its module is ported
 

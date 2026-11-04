@@ -33,6 +33,7 @@
 #include "system/iblue_port_led.h"
 #include "system/iblue_gesture.h"
 #include "system/iblue_tap.h"
+#include "system/iblue_dcapi.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*
@@ -487,6 +488,23 @@ static void wired_port_hdl(void) {
     }
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
     iblue_led_connecting(connecting);
+#endif
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+    /* The DC API (port.* keys, GET_PORT_STATUS) answers from this snapshot: it is read in the Maple interrupt, which cannot call
+     * the Bluetooth code. The numbers of dev_mode / acc_mode are the ones of the enums in adapter.h. */
+    iblue_dcapi_port_count(hw_config.port_cnt);
+    for (uint32_t p = 0; p < hw_config.port_cnt && p < IBLUE_DCAPI_PORTS; p++) {
+        struct bt_dev *port_dev = NULL;
+        uint8_t port_st = sense_port_is_empty(p) ? IBLUE_PORT_EMPTY : IBLUE_PORT_WIRED;
+        uint8_t port_type = 0, port_subtype = 0;
+
+        if (bt_host_get_active_dev_from_out_idx((uint8_t)p, &port_dev) >= 0) {
+            port_st = IBLUE_PORT_BT;
+            port_type = (uint8_t)port_dev->ids.type;
+            port_subtype = (uint8_t)port_dev->ids.subtype;
+        }
+        iblue_dcapi_port_set(p, port_st, config.out_cfg[p].dev_mode, config.out_cfg[p].acc_mode, port_type, port_subtype);
+    }
 #endif
     if (hw_config.hotplug) {
         if (port_state != port_mask) {

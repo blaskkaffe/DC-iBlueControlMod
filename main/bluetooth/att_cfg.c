@@ -44,6 +44,7 @@
 #define CFG_CMD_PROFILE_SAVE 0x44     /* write: slot, name; then read: result */
 #define CFG_CMD_PROFILE_LOAD 0x45     /* write: slot; then read: result */
 #define CFG_CMD_PROFILE_DELETE 0x46   /* write: slot; then read: result */
+#define CFG_CMD_GET_PORT_STATUS 0x50  /* read: count, then per port: state, dev_mode, acc_mode, bt type, bt subtype */
 #define CFG_CMD_DCAPI 0x51            /* DC API (dc1): write flags + request text chunks; then read: more flag + answer chunk */
 /* The ids 0x40 to 0x59 belong to the iBlueControlMod additions; docs/ble-commands.md is THE table, change it first.
  * Reserved for code that is not in this build yet (do not use these numbers for anything else):
@@ -56,6 +57,7 @@
 #define IBLUE_FEAT_GESTURES 0x01      /* info features: bit0 tap gestures */
 #define IBLUE_FEAT_PROFILES 0x02      /* bit1 profiles */
 #define IBLUE_FEAT_GAMEID 0x04        /* bit2 Dreamcast game id from openMenu (Maple command 0x21) */
+#define IBLUE_FEAT_PORTS 0x20         /* bit5 port status (command 0x50) */
 #define IBLUE_FEAT_DCAPI 0x40         /* bit6 DC API text tunnel (command 0x51) */
 #define IBLUE_CFG_VERSION 1
 #endif
@@ -457,7 +459,7 @@ static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
     features |= IBLUE_FEAT_GAMEID;
 #endif
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
-    features |= IBLUE_FEAT_DCAPI;
+    features |= IBLUE_FEAT_DCAPI | IBLUE_FEAT_PORTS; /* the port snapshot is the DC API engine's */
 #endif
     memcpy(d, "iBLU", 4);
     d[4] = IBLUE_CFG_VERSION;
@@ -487,6 +489,12 @@ static void bt_att_cfg_cmd_profile_rsp(uint16_t handle) {
 }
 
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+static void bt_att_cfg_cmd_port_status_rsp(uint16_t handle) {
+    uint32_t len = iblue_dcapi_port_status(bt_hci_pkt_tmp.att_data);
+
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, len);
+}
+
 static void bt_att_cfg_cmd_dcapi_rsp(uint16_t handle) {
     /* byte 0: 1 = more of the answer follows (read again), 0 = this was the last chunk; then up to 22 bytes of text */
     uint32_t len = iblue_dcapi_ble_read(bt_hci_pkt_tmp.att_data, 23);
@@ -541,6 +549,9 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
             bt_att_cfg_cmd_iblue_result_rsp(handle);
             break;
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+        case CFG_CMD_GET_PORT_STATUS:
+            bt_att_cfg_cmd_port_status_rsp(handle);
+            break;
         case CFG_CMD_DCAPI:
             bt_att_cfg_cmd_dcapi_rsp(handle);
             break;
