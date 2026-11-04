@@ -13,8 +13,10 @@
  *    hello.kind adapter, hello.name iBlueControlMod, hello.version <git describe>, hello.api 1, hello.caps api,net,port,game
  *    port.<A-D>.state  empty | bt | wired   (wired: the port's sense input says something is plugged in; the adapter never knows
  *                      what it is, that is for openMenu to find out)
- *    port.<A-D>.mode   normal | dual | keyboard | mouse   (the configured output mode; read only for now)
- *    port.<A-D>.acc    none | vmu | rumble | both          (the configured accessory; read only for now)
+ *    port.<A-D>.mode   normal | dual | keyboard | mouse   (the output mode; set applies at once: the console sees the controllers leave and
+ *                      come back; not stored until call sys.commit)
+ *    port.<A-D>.acc    none | vmu | rumble | both          (the accessory; same)
+ *    sys.unsaved       yes | no: a change is waiting for call sys.commit.   call sys.commit stores, call sys.revert loads the stored one
  *    port.<A-D>.name   what the Dreamcast sees on the port (read only)
  *    game.id        read only: the game id openMenu sent (Maple 0x21), absent when no game
  *    net.selected   dcnow | dcnet: set by whoever knows (the Pi over BLE, openMenu over Maple), read back; not stored
@@ -54,6 +56,18 @@
 
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
 
+/* Changes of the configuration from the DC API. The engine may run in the Maple interrupt, which cannot touch files, so it only asks
+ * (iblue_dcapi_cfg_request(), a queued message); iblue_dcapi_cfg_apply() does it in normal code (host.c). */
+#define IBLUE_CFG_SET_MODE 1   /* a = port, b = output mode (DEV_*) */
+#define IBLUE_CFG_SET_ACC 2    /* a = port, b = accessory mode (ACC_*) */
+#define IBLUE_CFG_COMMIT 3     /* store the live configuration (config_update) */
+#define IBLUE_CFG_REVERT 4     /* load the stored configuration again */
+void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b);
+struct raw_fb;
+void iblue_dcapi_cfg_apply(const struct raw_fb *fb);
+/* The live configuration was replaced by a stored one (a new game id): nothing is waiting to be saved any more */
+void iblue_dcapi_unsaved_clear(void);
+
 /* The version text for hello.version (copied; call once at start, from normal code). */
 void iblue_dcapi_init(const char *version);
 
@@ -81,6 +95,7 @@ size_t iblue_dcapi_ble_read(uint8_t *out, size_t max);
 
 #else
 #define iblue_dcapi_init(version)
+#define iblue_dcapi_unsaved_clear()
 #define iblue_dcapi_ext_caps(wire24)
 #define iblue_dcapi_port_count(count)
 #define iblue_dcapi_port_set(port, state, dev_mode, acc_mode, bt_type, bt_subtype)

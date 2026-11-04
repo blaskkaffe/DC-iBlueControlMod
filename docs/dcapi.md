@@ -2,7 +2,7 @@
 
 The adapter's end of the control language shared by the DC- projects. The design and the decisions are in the repository [DC-UnifiedEcosystem](https://github.com/blaskkaffe/DC-UnifiedEcosystem) (`docs/04-control-channel.md`); this page is what the firmware builds.
 
-**Status: written. The engine (`main/system/iblue_dcapi.c`) is host-tested (`sh main/tests/host/run.sh`, 63 checks, sanitizers on). The Maple and BLE glue and the Kconfig option are not built with ESP-IDF and nothing has run on an adapter or a console.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
+**Status: written. The engine (`main/system/iblue_dcapi.c`) is host-tested (`sh main/tests/host/run.sh`, 81 checks, sanitizers on). The Maple and BLE glue and the Kconfig option are not built with ESP-IDF and nothing has run on an adapter or a console.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
 
 ## What it answers
 
@@ -14,10 +14,14 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 | `game.id` | read only: the game id from openMenu (Maple `0x21`); `err game.id unavailable no game` when none |
 | `net.selected` | `dcnow` or `dcnet`; `set` by the Pi (over BLE) or openMenu (over Maple), read back; not stored; `err ... unavailable not set` until someone sets it. Nothing in the firmware uses it yet (the LED colour by network, IB-P2, will) |
 | `port.<A-D>.state` | `empty`, `bt` (a Bluetooth controller with finished HID setup is mapped to the port) or `wired` (the port's sense input says something is plugged in; a physical controller wins over a Bluetooth one). The adapter never learns **what** the wired device is, that is for openMenu to find out |
-| `port.<A-D>.mode` `.acc` `.name` | the configured output mode (`normal`, `dual`, `keyboard`, `mouse`), accessory mode (`none`, `vmu`, `rumble`, `both`) and what the Dreamcast sees (`Controller`, `Controller (dual stick)`, `Keyboard`, `Mouse`). **Read only for now**; changing a mode needs the config write path and `sys.commit`. Ports the board does not have answer `unavailable no such port` |
+| `port.<A-D>.mode` `.acc` | the output mode (`normal`, `dual`, `keyboard`, `mouse`) and accessory mode (`none`, `vmu`, `rumble`, `both`). **`set` works**: it is applied at once, and because a console only looks at what is on a port when it enumerates it, the wired side restarts (the console sees the controllers leave and come back, like a hot-plug). Not stored until `call sys.commit` |
+| `port.<A-D>.name` | read only: what the Dreamcast sees (`Controller`, `Controller (dual stick)`, `Keyboard`, `Mouse`). Ports the board does not have answer `unavailable no such port` |
+| `sys.unsaved` | `yes` while a live change waits to be stored, else `no`. `call sys.commit` stores it (`config_update`, as the web config does), `call sys.revert` loads the stored configuration again; both answer `done` or `nothing` and only act when something is waiting. A new game id loads another stored configuration and also clears the flag |
 | `events` | not implemented: `err events unavailable not implemented` |
 
 `profile.*`, `led.*`, `pair.*` of the design are not here yet; the capability bits say what is: `api` (bit 0), `net` (bit 1), `port` (bit 3), `game` (bit 5) = `0x2B`.
+
+**How a change is applied:** the Maple interrupt cannot touch files or restart the wired side, so the engine only queues a message (`FB_TYPE_API_CFG`, three bytes, like the game id); `host.c` hands it to `iblue_dcapi_cfg_apply()` (`system/iblue_dcapi_cfg.c`) in the Bluetooth task, which writes `config.out_cfg[]`, and for a mode change asks the system manager for `SYS_MGR_CMD_WIRED_RST`. The answer to the `set` does not wait for that; the engine's own copy of the value changes at once so reading it back shows it.
 
 The ports are read from a snapshot (`iblue_dcapi_port_set()`) that `wired_port_hdl()` in `manager.c` refreshes whenever it maps Bluetooth controllers to ports, because the Maple interrupt that answers cannot call the Bluetooth code. So a change shows up when that function next runs.
 

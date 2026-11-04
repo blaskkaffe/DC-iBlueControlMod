@@ -10,6 +10,10 @@ static int fails, checks;
 #define SAME(got, want) do { checks++; if (strcmp((got), (want)) != 0) { fails++; printf("FAIL %s:%d:\n got:  %s\n want: %s\n", __FILE__, __LINE__, got, want); } } while (0)
 
 void adapter_q_fb(struct raw_fb *fb_data) { (void)fb_data; }
+/* what the engine asks the firmware to do (normally a queued message, applied in host.c) */
+static struct { uint8_t op, a, b; } reqs[32];
+static int nreq;
+void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { if (nreq < 32) { reqs[nreq].op = op; reqs[nreq].a = a; reqs[nreq].b = b; nreq++; } }
 
 static char ans[IBLUE_DCAPI_ANS_MAX + 1];
 static const char *ask(const char *req) {
@@ -48,7 +52,7 @@ int main(void) {
     SAME(ask("dc1\nset net.selected dcnow\nget net.*\n"), "dc1\nok net.selected dcnow\nok net.selected dcnow\n");
     SAME(ask("dc1\nset net.selected pizza\nget net.selected\n"), "dc1\nerr net.selected range dcnow or dcnet\nok net.selected dcnow\n");
     game("DC_TEST");
-    SAME(ask("dc1\nget *\n"), "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version v0.8-12-g1a2b3c4_dirty\nok hello.api 1\nok hello.caps api,net,port,game\nok game.id DC_TEST\nok net.selected dcnow\n");
+    SAME(ask("dc1\nget *\n"), "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version v0.8-12-g1a2b3c4_dirty\nok hello.api 1\nok hello.caps api,net,port,game\nok game.id DC_TEST\nok net.selected dcnow\nok sys.unsaved no\n");
     SAME(ask("dc1\nget game.*\nget hello.c*\n"), "dc1\nok game.id DC_TEST\nok hello.caps api,net,port,game\n");
 
     /* ports: nothing until the firmware says how many the board has */
@@ -69,7 +73,32 @@ int main(void) {
     iblue_dcapi_port_set(1, IBLUE_PORT_WIRED, 0, 0, 0, 0);
     SAME(ask("dc1\nget port.B.state\n"), "dc1\nok port.B.state wired\n");
     iblue_dcapi_port_set(1, IBLUE_PORT_EMPTY, 3, 0, 0, 0);
-    SAME(ask("dc1\nset port.A.mode dual\nset port.A.state wired\nset port.C.mode dual\n"), "dc1\nerr port.A.mode readonly\nerr port.A.state readonly\nerr port.C.mode readonly\n");
+    SAME(ask("dc1\nset port.A.state wired\nset port.A.name x\nset port.C.mode dual\nset sys.unsaved no\n"),
+         "dc1\nerr port.A.state readonly\nerr port.A.name readonly\nerr port.C.mode unavailable no such port\nerr sys.unsaved readonly\n");
+    /* writable output and accessory modes: applied at once, asked of the firmware once, not stored until sys.commit */
+    CHECK(nreq == 0);
+    SAME(ask("dc1\nget sys.unsaved\n"), "dc1\nok sys.unsaved no\n");
+    SAME(ask("dc1\nset port.A.mode dual\nget port.A.mode\nget port.A.name\nget sys.unsaved\n"),
+         "dc1\nok port.A.mode dual\nok port.A.mode dual\nok port.A.name Controller (dual stick)\nok sys.unsaved yes\n");
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_SET_MODE && reqs[0].a == 0 && reqs[0].b == 1);
+    SAME(ask("dc1\nset port.A.mode dual\n"), "dc1\nok port.A.mode dual\n");
+    CHECK(nreq == 1);                                                              /* the same value again asks for nothing */
+    SAME(ask("dc1\nset port.B.acc both\nset port.B.acc rumble\n"), "dc1\nok port.B.acc both\nok port.B.acc rumble\n");
+    CHECK(nreq == 3 && reqs[1].op == IBLUE_CFG_SET_ACC && reqs[1].a == 1 && reqs[1].b == 3 && reqs[2].b == 2);
+    SAME(ask("dc1\nset port.A.mode racing\nset port.A.acc 3\nset port.A.mode Dual\nset port.A.mode\n"),
+         "dc1\nerr port.A.mode range normal dual keyboard or mouse\nerr port.A.acc range none vmu rumble or both\nerr port.A.mode range normal dual keyboard or mouse\nerr port.A.mode range normal dual keyboard or mouse\n");
+    CHECK(nreq == 3);                                                              /* nothing was asked for the bad values */
+    SAME(ask("dc1\ncall sys.commit\nget sys.unsaved\n"), "dc1\nok sys.commit done\nok sys.unsaved no\n");
+    CHECK(nreq == 4 && reqs[3].op == IBLUE_CFG_COMMIT);
+    SAME(ask("dc1\ncall sys.commit\ncall sys.revert\n"), "dc1\nok sys.commit nothing\nok sys.revert nothing\n");
+    CHECK(nreq == 4);                                                              /* nothing waiting: nothing asked */
+    SAME(ask("dc1\nset port.A.acc none\ncall sys.revert\nget sys.unsaved\n"), "dc1\nok port.A.acc none\nok sys.revert done\nok sys.unsaved no\n");
+    CHECK(nreq == 6 && reqs[5].op == IBLUE_CFG_REVERT);
+    iblue_dcapi_port_set(0, IBLUE_PORT_BT, 0, 1, 7, 3);                            /* the firmware's snapshot after the revert */
+    iblue_dcapi_port_set(1, IBLUE_PORT_EMPTY, 3, 0, 0, 0);
+    SAME(ask("dc1\nset port.A.acc none\n"), "dc1\nok port.A.acc none\n");        /* the snapshot says vmu, so this is a change and asks again */
+    iblue_dcapi_unsaved_clear();                                                   /* a new game id loaded another configuration */
+    SAME(ask("dc1\nget sys.unsaved\n"), "dc1\nok sys.unsaved no\n");
     iblue_dcapi_port_count(9);                                                    /* more than the engine has is cut to 4 */
     CHECK(strstr(ask("dc1\nget port.D.state\n"), "ok port.D.state") != NULL);
     iblue_dcapi_port_count(2);

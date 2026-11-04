@@ -393,6 +393,7 @@ enum {
     FB_TYPE_MEM_WRITE,
     FB_TYPE_GAME_ID,
     FB_TYPE_SYS_ID,
+    FB_TYPE_API_CFG, /* the DC API changes the configuration: data[0] = IBLUE_CFG_*, data[1], data[2] (system/iblue_dcapi.h) */
 };
 
 enum {

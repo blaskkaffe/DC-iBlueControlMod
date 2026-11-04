@@ -24,6 +24,14 @@ DSTR(S_HELLO, "hello");
 DSTR(S_EVENTS, "events");
 DSTR(S_UNKNOWN, " unknown");
 DSTR(S_READONLY, " readonly");
+DSTR(S_RANGE_MODE, " range normal dual keyboard or mouse");
+DSTR(S_RANGE_ACC, " range none vmu rumble or both");
+DSTR(S_YES, "yes");
+DSTR(S_NO, "no");
+DSTR(S_DONE, "done");
+DSTR(S_NOTHING, "nothing");
+DSTR(S_COMMIT, "sys.commit");
+DSTR(S_REVERT, "sys.revert");
 DSTR(S_NOTSET, " unavailable not set");
 DSTR(S_NOGAME, " unavailable no game");
 DSTR(S_NOEVENTS, "err events unavailable not implemented\n");
@@ -50,19 +58,20 @@ static DRAM_ATTR const char acc_names[4][7] = {"none", "vmu", "rumble", "both"};
 static DRAM_ATTR const char dc_names[4][24] = {"Controller", "Controller (dual stick)", "Keyboard", "Mouse"};
 #define PORT_ID_BASE 100 /* key ids of the port keys: 100 + port * 8 + field */
 
-enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_COUNT };
+enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_COUNT };
 #define K_HELLO_LAST K_CAPS
 static DRAM_ATTR const struct {
     char name[16];
     uint8_t id;
 } keytab[K_COUNT] = {
     {"hello.kind", K_KIND}, {"hello.name", K_NAME}, {"hello.version", K_VERSION}, {"hello.api", K_API},
-    {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET},
+    {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET}, {"sys.unsaved", K_UNSAVED},
 };
 
 #define VERSION_MAX 32
 static DRAM_ATTR char version[VERSION_MAX + 1];
 static DRAM_ATTR volatile uint8_t net_selected; /* 0 = not set, 1 = dcnow, 2 = dcnet */
+static DRAM_ATTR volatile uint8_t unsaved; /* a live change waits for sys.commit */
 static DRAM_ATTR volatile uint8_t port_cnt;
 static DRAM_ATTR volatile uint8_t port_state[IBLUE_DCAPI_PORTS], port_mode[IBLUE_DCAPI_PORTS], port_acc[IBLUE_DCAPI_PORTS];
 static DRAM_ATTR volatile uint8_t port_bt_type[IBLUE_DCAPI_PORTS], port_bt_sub[IBLUE_DCAPI_PORTS];
@@ -140,6 +149,9 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
                 return 1;
             }
             o_str(o, iblue_gameid_current());
+            return 0;
+        case K_UNSAVED:
+            o_str(o, unsaved ? S_YES : S_NO);
             return 0;
         case K_NET:
             if (!net_selected) {
@@ -318,10 +330,43 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
         line_err(o, key, klen, S_UNKNOWN);
     }
     else if (id >= PORT_ID_BASE) {
-        line_err(o, key, klen, S_READONLY); /* the ports are read only for now */
+        uint32_t p = (uint32_t)(id - PORT_ID_BASE) / 8;
+        uint32_t f = (uint32_t)(id - PORT_ID_BASE) % 8;
+        int v = -1;
+
+        if (f != F_MODE && f != F_ACC) {
+            line_err(o, key, klen, S_READONLY);
+        }
+        else if (p >= port_cnt || p >= IBLUE_DCAPI_PORTS) {
+            line_err(o, key, klen, S_NOPORT);
+        }
+        else {
+            for (uint32_t i = 0; i < 4; i++) {
+                if (eq(val, vlen, f == F_MODE ? mode_names[i] : acc_names[i])) {
+                    v = (int)i;
+                }
+            }
+            if (v < 0) {
+                line_err(o, key, klen, f == F_MODE ? S_RANGE_MODE : S_RANGE_ACC);
+            }
+            else {
+                if ((f == F_MODE ? port_mode[p] : port_acc[p]) != v) {
+                    /* applied at once in normal code (the console re-enumerates), not stored */
+                    iblue_dcapi_cfg_request(f == F_MODE ? IBLUE_CFG_SET_MODE : IBLUE_CFG_SET_ACC, (uint8_t)p, (uint8_t)v);
+                    if (f == F_MODE) {
+                        port_mode[p] = (uint8_t)v;
+                    }
+                    else {
+                        port_acc[p] = (uint8_t)v;
+                    }
+                    unsaved = 1;
+                }
+                line_ok(o, (uint8_t)id);
+            }
+        }
     }
     else if (id != K_NET) {
-        line_err(o, key, klen, S_READONLY);
+        line_err(o, key, klen, S_READONLY); /* sys.unsaved, game.id and hello.* too */
     }
     else if (eq(val, vlen, S_DCNOW)) {
         net_selected = 1;
@@ -463,7 +508,25 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
             op_set(&o, line + b, e - b, line + v, n - v);
         }
         else if (eq(line, w, S_CALL)) {
-            line_err(&o, line + b, e - b, S_UNKNOWN);
+            if (eq(line + b, e - b, S_COMMIT) || eq(line + b, e - b, S_REVERT)) {
+                int commit = eq(line + b, e - b, S_COMMIT);
+
+                o_str(&o, S_OK);
+                o_mem(&o, line + b, e - b);
+                o_str(&o, S_SP);
+                if (unsaved) {
+                    iblue_dcapi_cfg_request(commit ? IBLUE_CFG_COMMIT : IBLUE_CFG_REVERT, 0, 0);
+                    unsaved = 0;
+                    o_str(&o, S_DONE);
+                }
+                else {
+                    o_str(&o, S_NOTHING);
+                }
+                o_end_line(&o);
+            }
+            else {
+                line_err(&o, line + b, e - b, S_UNKNOWN);
+            }
         }
         else {
             line_err(&o, line, w, S_UNKNOWN);
@@ -475,6 +538,10 @@ done:
     }
     *o.p = 0;
     return (size_t)(o.p - out);
+}
+
+void iblue_dcapi_unsaved_clear(void) {
+    unsaved = 0;
 }
 
 void iblue_dcapi_init(const char *v) {

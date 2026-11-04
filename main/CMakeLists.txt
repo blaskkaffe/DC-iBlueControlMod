@@ -68,6 +68,7 @@ set(srcs
     "system/iblue_anim_curve.c"
     "system/iblue_gameid.c"
     "system/iblue_dcapi.c"
+    "system/iblue_dcapi_cfg.c"
     "system/iblue_gesture.c"
     "system/iblue_tap.c"
     "system/iblue_profile.c"

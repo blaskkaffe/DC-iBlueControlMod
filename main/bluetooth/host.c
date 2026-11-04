@@ -28,6 +28,7 @@
 #include "system/fs.h"
 #include "adapter/config.h"
 #include "adapter/gameid.h"
+#include "system/iblue_dcapi.h"
 #include "adapter/memory_card.h"
 #include "adapter/wired/wired.h"
 #include "adapter/hid_parser.h"
@@ -242,13 +243,20 @@ static void bt_fb_task(void *param) {
                 case FB_TYPE_GAME_ID:
                     if (gid_update(fb_data)) {
                         config_init(GAMEID_CFG);
+                        iblue_dcapi_unsaved_clear();
                     }
                     break;
                 case FB_TYPE_SYS_ID:
                     if (gid_update_sys(fb_data)) {
                         config_init(GAMEID_CFG);
+                        iblue_dcapi_unsaved_clear();
                     }
                     break;
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+                case FB_TYPE_API_CFG:
+                    iblue_dcapi_cfg_apply(fb_data);
+                    break;
+#endif
                 default:
                     break;
             }
