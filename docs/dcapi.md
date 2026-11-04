@@ -2,7 +2,7 @@
 
 The adapter's end of the control language shared by the DC- projects. The design and the decisions are in the repository [DC-UnifiedEcosystem](https://github.com/blaskkaffe/DC-UnifiedEcosystem) (`docs/04-control-channel.md`); this page is what the firmware builds.
 
-**Status: written. The engine (`main/system/iblue_dcapi.c`) is host-tested (`sh main/tests/host/run.sh`, 65 checks, sanitizers on). The Maple and BLE glue and the Kconfig option are not built with ESP-IDF and nothing has run on an adapter or a console.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
+**Status: written. The engine (`main/system/iblue_dcapi.c`) is host-tested (`sh main/tests/host/run.sh`, 63 checks, sanitizers on). The Maple and BLE glue and the Kconfig option are not built with ESP-IDF and nothing has run on an adapter or a console.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
 
 ## What it answers
 
@@ -13,9 +13,8 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 | `hello.kind` `hello.name` `hello.version` `hello.api` `hello.caps` | `adapter`, `iBlueControlMod`, the firmware version, `1`, `api,net,port,game` |
 | `game.id` | read only: the game id from openMenu (Maple `0x21`); `err game.id unavailable no game` when none |
 | `net.selected` | `dcnow` or `dcnet`; `set` by the Pi (over BLE) or openMenu (over Maple), read back; not stored; `err ... unavailable not set` until someone sets it. Nothing in the firmware uses it yet (the LED colour by network, IB-P2, will) |
-| `port.<A-D>.state` | `empty`, `bt` (a Bluetooth controller with finished HID setup is mapped to the port) or `wired`. `wired` comes from the board's sense line where there is one (BlueRetro-style wiring), and from the peer hint below; **the iBlue board has no sense line**, so there it is only the hint |
-| `port.<A-D>.mode` `.acc` `.name` | the configured output mode (`normal`, `dual`, `keyboard`, `mouse`), accessory mode (`none`, `vmu`, `rumble`, `both`) and what the Dreamcast sees (`Controller`, `Controller (dual stick)`, `Keyboard`, `Mouse`). **Read only for now**; changing a mode needs the config write path and `sys.commit` |
-| `port.<A-D>.peer` | the device found on a wired port (`pico2maple` ...): `set` by whoever knows (openMenu from its scan, or the Pi), not stored, `none` clears it; 1 to 11 characters of letters, digits, `-`, `_`. A port with a peer reads `wired`. Ports the board does not have answer `unavailable no such port` |
+| `port.<A-D>.state` | `empty`, `bt` (a Bluetooth controller with finished HID setup is mapped to the port) or `wired` (the port's sense input says something is plugged in; a physical controller wins over a Bluetooth one). The adapter never learns **what** the wired device is, that is for openMenu to find out |
+| `port.<A-D>.mode` `.acc` `.name` | the configured output mode (`normal`, `dual`, `keyboard`, `mouse`), accessory mode (`none`, `vmu`, `rumble`, `both`) and what the Dreamcast sees (`Controller`, `Controller (dual stick)`, `Keyboard`, `Mouse`). **Read only for now**; changing a mode needs the config write path and `sys.commit`. Ports the board does not have answer `unavailable no such port` |
 | `events` | not implemented: `err events unavailable not implemented` |
 
 `profile.*`, `led.*`, `pair.*` of the design are not here yet; the capability bits say what is: `api` (bit 0), `net` (bit 1), `port` (bit 3), `game` (bit 5) = `0x2B`.

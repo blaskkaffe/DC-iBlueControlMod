@@ -495,13 +495,16 @@ static void wired_port_hdl(void) {
     iblue_dcapi_port_count(hw_config.port_cnt);
     for (uint32_t p = 0; p < hw_config.port_cnt && p < IBLUE_DCAPI_PORTS; p++) {
         struct bt_dev *port_dev = NULL;
-        uint8_t port_st = sense_port_is_empty(p) ? IBLUE_PORT_EMPTY : IBLUE_PORT_WIRED;
+        uint8_t port_st = IBLUE_PORT_EMPTY;
         uint8_t port_type = 0, port_subtype = 0;
 
         if (bt_host_get_active_dev_from_out_idx((uint8_t)p, &port_dev) >= 0) {
             port_st = IBLUE_PORT_BT;
             port_type = (uint8_t)port_dev->ids.type;
             port_subtype = (uint8_t)port_dev->ids.subtype;
+        }
+        if (!sense_port_is_empty(p)) {
+            port_st = IBLUE_PORT_WIRED; /* the sense input says something is plugged in: a physical controller wins; what it is, is not our business */
         }
         iblue_dcapi_port_set(p, port_st, config.out_cfg[p].dev_mode, config.out_cfg[p].acc_mode, port_type, port_subtype);
     }

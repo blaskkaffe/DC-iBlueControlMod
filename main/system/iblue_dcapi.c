@@ -41,18 +41,14 @@ DSTR(S_IBLUE, "iblue");
 DSTR(S_UNKNOWN_VERSION, "unknown");
 DSTR(S_PORT, "port.");
 DSTR(S_NOPORT, " unavailable no such port");
-DSTR(S_NOPEER, " unavailable none");
-DSTR(S_NONE, "none");
-DSTR(S_RANGE_PEER, " range letters digits - _ up to 11 characters or none");
-/* port fields: state mode acc name peer */
-enum { F_STATE, F_MODE, F_ACC, F_NAME, F_PEER, F_COUNT };
-static DRAM_ATTR const char field_names[F_COUNT][6] = {"state", "mode", "acc", "name", "peer"};
+/* port fields: state mode acc name */
+enum { F_STATE, F_MODE, F_ACC, F_NAME, F_COUNT };
+static DRAM_ATTR const char field_names[F_COUNT][6] = {"state", "mode", "acc", "name"};
 static DRAM_ATTR const char state_names[3][6] = {"empty", "bt", "wired"};
 static DRAM_ATTR const char mode_names[4][9] = {"normal", "dual", "keyboard", "mouse"};
 static DRAM_ATTR const char acc_names[4][7] = {"none", "vmu", "rumble", "both"};
 static DRAM_ATTR const char dc_names[4][24] = {"Controller", "Controller (dual stick)", "Keyboard", "Mouse"};
 #define PORT_ID_BASE 100 /* key ids of the port keys: 100 + port * 8 + field */
-#define PEER_MAX 11
 
 enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_COUNT };
 #define K_HELLO_LAST K_CAPS
@@ -70,7 +66,6 @@ static DRAM_ATTR volatile uint8_t net_selected; /* 0 = not set, 1 = dcnow, 2 = d
 static DRAM_ATTR volatile uint8_t port_cnt;
 static DRAM_ATTR volatile uint8_t port_state[IBLUE_DCAPI_PORTS], port_mode[IBLUE_DCAPI_PORTS], port_acc[IBLUE_DCAPI_PORTS];
 static DRAM_ATTR volatile uint8_t port_bt_type[IBLUE_DCAPI_PORTS], port_bt_sub[IBLUE_DCAPI_PORTS];
-static DRAM_ATTR char port_peer[IBLUE_DCAPI_PORTS][PEER_MAX + 1]; /* "" = none */
 
 /* maple and ble keep their own buffers (static: the interrupt has little stack) */
 static DRAM_ATTR char maple_req[IBLUE_DCAPI_REQ_MAX + 1];
@@ -164,7 +159,7 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
         }
         switch (f) {
             case F_STATE:
-                o_str(o, state_names[port_peer[p][0] ? IBLUE_PORT_WIRED : (port_state[p] > 2 ? 0 : port_state[p])]);
+                o_str(o, state_names[port_state[p] > 2 ? 0 : port_state[p]]);
                 return 0;
             case F_MODE:
                 o_str(o, mode_names[port_mode[p] & 3]);
@@ -175,12 +170,8 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
             case F_NAME:
                 o_str(o, dc_names[port_mode[p] & 3]);
                 return 0;
-            default: /* F_PEER */
-                if (!port_peer[p][0]) {
-                    return 1;
-                }
-                o_str(o, port_peer[p]);
-                return 0;
+            default:
+                return 1;
         }
     }
     return 1;
@@ -309,7 +300,7 @@ static void IRAM_ATTR op_get(struct out *o, const char *key, size_t klen) {
 
         if (key_value(&t, (uint8_t)id) != 0) {
             if (id >= PORT_ID_BASE) {
-                line_err(o, key, klen, ((uint32_t)(id - PORT_ID_BASE) / 8 >= port_cnt) ? S_NOPORT : S_NOPEER);
+                line_err(o, key, klen, S_NOPORT);
             }
             else {
                 line_err(o, key, klen, id == K_GAME ? S_NOGAME : S_NOTSET);
@@ -327,41 +318,7 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
         line_err(o, key, klen, S_UNKNOWN);
     }
     else if (id >= PORT_ID_BASE) {
-        uint32_t p = (uint32_t)(id - PORT_ID_BASE) / 8;
-
-        if ((uint32_t)(id - PORT_ID_BASE) % 8 != F_PEER) {
-            line_err(o, key, klen, S_READONLY);
-        }
-        else if (p >= port_cnt || p >= IBLUE_DCAPI_PORTS) {
-            line_err(o, key, klen, S_NOPORT);
-        }
-        else if (eq(val, vlen, S_NONE)) {
-            port_peer[p][0] = 0;
-            o_str(o, S_OK);
-            o_mem(o, key, klen);
-            o_str(o, S_SP);
-            o_str(o, S_NONE);
-            o_end_line(o);
-        }
-        else {
-            int good = vlen > 0 && vlen <= PEER_MAX;
-
-            for (size_t i = 0; good && i < vlen; i++) {
-                char c = val[i];
-
-                good = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_';
-            }
-            if (!good) {
-                line_err(o, key, klen, S_RANGE_PEER);
-            }
-            else {
-                for (size_t i = 0; i < vlen; i++) {
-                    port_peer[p][i] = val[i];
-                }
-                port_peer[p][vlen] = 0;
-                line_ok(o, (uint8_t)id);
-            }
-        }
+        line_err(o, key, klen, S_READONLY); /* the ports are read only for now */
     }
     else if (id != K_NET) {
         line_err(o, key, klen, S_READONLY);
@@ -553,7 +510,7 @@ size_t iblue_dcapi_port_status(uint8_t *out) {
 
     out[n++] = port_cnt;
     for (uint32_t p = 0; p < port_cnt && p < IBLUE_DCAPI_PORTS; p++) {
-        out[n++] = port_peer[p][0] ? IBLUE_PORT_WIRED : port_state[p];
+        out[n++] = port_state[p];
         out[n++] = port_mode[p];
         out[n++] = port_acc[p];
         out[n++] = port_bt_type[p];

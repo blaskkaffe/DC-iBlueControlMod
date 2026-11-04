@@ -41,7 +41,7 @@ A client must check the bit before using a command and must ignore bits it does 
 
 ## `GET_PORT_STATUS` (0x50), as DC-DreamDash's module expects it
 
-Read only. Answer: `[count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]`, five bytes per port. `state`: 0 empty, 1 Bluetooth (a controller with finished HID setup is mapped to the port), 2 wired (the port's sense line is pulled to ground, the same test the firmware uses to skip that port when it hands out Bluetooth slots). `dev_mode` and `acc_mode` are the configured output mode and accessory mode (BlueRetro's `out_cfg`). **Written, not built or tried**: the state comes from a snapshot that `manager.c` refreshes (see [dcapi.md](dcapi.md)). On the iBlue board there is no sense line, so `wired` appears only through the DC API's `port.<X>.peer` hint.
+Read only. Answer: `[count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]`, five bytes per port. `state`: 0 empty, 1 Bluetooth (a controller with finished HID setup is mapped to the port), 2 wired (the port's sense line is pulled to ground, the same test the firmware uses to skip that port when it hands out Bluetooth slots). `dev_mode` and `acc_mode` are the configured output mode and accessory mode (BlueRetro's `out_cfg`). **Written, not built or tried**: the state comes from a snapshot that `manager.c` refreshes (see [dcapi.md](dcapi.md)). The iBlue is a HW2 build, so the port sense inputs are read like on BlueRetro's own HW2 hardware (`sense_port_is_empty()` in `manager.c`).
 
 ## What the other repository has to change when its module is ported
 

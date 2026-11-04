@@ -11,12 +11,11 @@
  *
  * Keys this adapter has (capabilities api, net, port, game; the other keys of the design come with the code behind them):
  *    hello.kind adapter, hello.name iBlueControlMod, hello.version <git describe>, hello.api 1, hello.caps api,net,port,game
- *    port.<A-D>.state  empty | bt | wired   (wired: the sense line on boards that have it, or the peer hint below)
+ *    port.<A-D>.state  empty | bt | wired   (wired: the port's sense input says something is plugged in; the adapter never knows
+ *                      what it is, that is for openMenu to find out)
  *    port.<A-D>.mode   normal | dual | keyboard | mouse   (the configured output mode; read only for now)
  *    port.<A-D>.acc    none | vmu | rumble | both          (the configured accessory; read only for now)
  *    port.<A-D>.name   what the Dreamcast sees on the port (read only)
- *    port.<A-D>.peer   the device openMenu found on a wired port ("pico2maple" ...): written by the one who knows, not stored,
- *                      "none" clears it; a port with a peer reads as wired
  *    game.id        read only: the game id openMenu sent (Maple 0x21), absent when no game
  *    net.selected   dcnow | dcnet: set by whoever knows (the Pi over BLE, openMenu over Maple), read back; not stored
  *    events         not implemented here (err events unavailable)

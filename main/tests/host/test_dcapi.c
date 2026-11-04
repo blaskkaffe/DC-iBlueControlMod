@@ -61,29 +61,27 @@ int main(void) {
     SAME(ask("dc1\nget port.B.*\n"), "dc1\nok port.B.state empty\nok port.B.mode mouse\nok port.B.acc none\nok port.B.name Mouse\n");
     SAME(ask("dc1\nget port.C.state\nget port.E.state\nget port.A.colour\n"),
          "dc1\nerr port.C.state unavailable no such port\nerr port.E.state unknown\nerr port.A.colour unknown\n");
-    SAME(ask("dc1\nget port.A.peer\n"), "dc1\nerr port.A.peer unavailable none\n");
     CHECK(strstr(ask("dc1\nget port.*\n"), "ok port.A.state bt\nok port.A.mode normal") != NULL);
-    CHECK(strstr(ask("dc1\nget port.*\n"), "peer") == NULL);                 /* a key without a value is left out of a list */
-    /* the peer hint: the one who knows says what is on a wired port */
-    SAME(ask("dc1\nset port.B.peer pico2maple\nget port.B.state\nget port.B.peer\n"),
-         "dc1\nok port.B.peer pico2maple\nok port.B.state wired\nok port.B.peer pico2maple\n");
-    SAME(ask("dc1\nset port.B.peer none\nget port.B.state\n"), "dc1\nok port.B.peer none\nok port.B.state empty\n");
-    SAME(ask("dc1\nset port.B.peer bad/name\n"), "dc1\nerr port.B.peer range letters digits - _ up to 11 characters or none\n");
-    SAME(ask("dc1\nset port.B.peer abcdefghijkl\n"), "dc1\nerr port.B.peer range letters digits - _ up to 11 characters or none\n");
-    SAME(ask("dc1\nset port.C.peer x\n"), "dc1\nerr port.C.peer unavailable no such port\n");
-    SAME(ask("dc1\nset port.A.mode dual\nset port.A.state wired\n"), "dc1\nerr port.A.mode readonly\nerr port.A.state readonly\n");
+    CHECK(strstr(ask("dc1\nget port.*\n"), "peer") == NULL);                 /* there is no such key: the adapter never knows what a wired device is */
+    SAME(ask("dc1\nget port.A.peer\n"), "dc1\nerr port.A.peer unknown\n");
+    SAME(ask("dc1\nset port.B.peer pico2maple\n"), "dc1\nerr port.B.peer unknown\n");
+    /* a wired controller: the sense input says the port is used */
+    iblue_dcapi_port_set(1, IBLUE_PORT_WIRED, 0, 0, 0, 0);
+    SAME(ask("dc1\nget port.B.state\n"), "dc1\nok port.B.state wired\n");
+    iblue_dcapi_port_set(1, IBLUE_PORT_EMPTY, 3, 0, 0, 0);
+    SAME(ask("dc1\nset port.A.mode dual\nset port.A.state wired\nset port.C.mode dual\n"), "dc1\nerr port.A.mode readonly\nerr port.A.state readonly\nerr port.C.mode readonly\n");
     iblue_dcapi_port_count(9);                                                    /* more than the engine has is cut to 4 */
     CHECK(strstr(ask("dc1\nget port.D.state\n"), "ok port.D.state") != NULL);
     iblue_dcapi_port_count(2);
     iblue_dcapi_port_set(7, 1, 1, 1, 1, 1);                                       /* a port that does not exist is ignored */
     {
         uint8_t st[32];
-        iblue_dcapi_handle("dc1\nset port.A.peer rig\n", 24, ans, sizeof(ans));
+        iblue_dcapi_port_set(0, IBLUE_PORT_WIRED, 0, 1, 7, 3);                     /* a wired controller on A for this check */
         size_t n = iblue_dcapi_port_status(st);
         CHECK(n == 11);                                                           /* count + 2 x 5 bytes */
-        CHECK(st[0] == 2 && st[1] == 2 && st[2] == 0 && st[3] == 1 && st[4] == 7 && st[5] == 3);   /* A: wired (peer), normal, vmu, bt 7/3 */
+        CHECK(st[0] == 2 && st[1] == 2 && st[2] == 0 && st[3] == 1 && st[4] == 7 && st[5] == 3);   /* A: wired, normal, vmu, bt 7/3 */
         CHECK(st[6] == IBLUE_PORT_EMPTY && st[7] == 3 && st[8] == 0);             /* B */
-        iblue_dcapi_handle("dc1\nset port.A.peer none\n", 25, ans, sizeof(ans));
+        iblue_dcapi_port_set(0, IBLUE_PORT_BT, 0, 1, 7, 3);
     }
     SAME(ask("dc1\nget hello.api\n"), "dc1\nok hello.api 1\n");
 
