@@ -50,22 +50,26 @@ DSTR(S_UNKNOWN_VERSION, "unknown");
 DSTR(S_PORT, "port.");
 DSTR(S_NOPORT, " unavailable no such port");
 /* port fields: state mode acc name */
-enum { F_STATE, F_MODE, F_ACC, F_NAME, F_COUNT };
-static DRAM_ATTR const char field_names[F_COUNT][6] = {"state", "mode", "acc", "name"};
+enum { F_STATE, F_MODE, F_ACC, F_NAME, F_MODES, F_ACCS, F_COUNT };
+static DRAM_ATTR const char field_names[F_COUNT][6] = {"state", "mode", "acc", "name", "modes", "accs"};
+DSTR(S_MODES, "normal,dual,keyboard,mouse"); /* what `set port.X.mode` accepts here */
+DSTR(S_ACCS, "none,vmu,rumble,both");
+DSTR(S_STORE, "commit");
 static DRAM_ATTR const char state_names[3][6] = {"empty", "bt", "wired"};
 static DRAM_ATTR const char mode_names[4][9] = {"normal", "dual", "keyboard", "mouse"};
 static DRAM_ATTR const char acc_names[4][7] = {"none", "vmu", "rumble", "both"};
-static DRAM_ATTR const char dc_names[4][24] = {"Controller", "Controller (dual stick)", "Keyboard", "Mouse"};
+/* the product name the console reads in the device info (maple.c: ctrl_area_dir_name ...); the dual stick mode has the controller's name */
+static DRAM_ATTR const char dc_names[4][24] = {"Dreamcast Controller", "Dreamcast Controller", "Keyboard", "Dreamcast Mouse"};
 #define PORT_ID_BASE 100 /* key ids of the port keys: 100 + port * 8 + field */
 
-enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_COUNT };
+enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_COUNT };
 #define K_HELLO_LAST K_CAPS
 static DRAM_ATTR const struct {
     char name[16];
     uint8_t id;
 } keytab[K_COUNT] = {
     {"hello.kind", K_KIND}, {"hello.name", K_NAME}, {"hello.version", K_VERSION}, {"hello.api", K_API},
-    {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET}, {"sys.unsaved", K_UNSAVED},
+    {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET}, {"sys.unsaved", K_UNSAVED}, {"sys.store", K_STORE},
 };
 
 #define VERSION_MAX 32
@@ -153,6 +157,9 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
         case K_UNSAVED:
             o_str(o, unsaved ? S_YES : S_NO);
             return 0;
+        case K_STORE:
+            o_str(o, S_STORE);
+            return 0;
         case K_NET:
             if (!net_selected) {
                 return 1;
@@ -181,6 +188,12 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
                 return 0;
             case F_NAME:
                 o_str(o, dc_names[port_mode[p] & 3]);
+                return 0;
+            case F_MODES:
+                o_str(o, S_MODES);
+                return 0;
+            case F_ACCS:
+                o_str(o, S_ACCS);
                 return 0;
             default:
                 return 1;
