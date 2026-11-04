@@ -125,8 +125,11 @@ int main(void) {
     /* more operations than fit are dropped, not crashed on */
     {
         char many[800] = "dc1\n";
-        for (int i = 0; i < 30; i++) strcat(many, "get hello.api\n");
+        for (int i = 0; i < 30; i++) strcat(many, "get hello.api\n");   /* 8 are answered, the rest dropped */
         CHECK(iblue_dcapi_handle(many, strlen(many), ans, sizeof(ans)) > 0);
+        int lines = 0;
+        for (const char *q = ans; (q = strstr(q, "ok hello.api 1")) != NULL; q++) lines++;
+        CHECK(lines == 8);
     }
 
     /* the Maple bus: text word-reversed in both directions, padded to whole words */

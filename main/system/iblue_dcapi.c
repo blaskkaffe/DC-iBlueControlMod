@@ -388,8 +388,8 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
     int addressed = 1;
     char id_txt[11];
     size_t id_len = 0;
-    const char *ops[16];
-    size_t ops_len[16];
+    const char *ops[8]; /* few and small: this runs in the Maple interrupt with little stack */
+    size_t ops_len[8];
     uint32_t nops = 0;
 
     if (!out_cap) {
@@ -450,7 +450,7 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
 
             addressed = eq(line + b, tl, S_SELF) || eq(line + b, tl, S_IBLUE) || eq(line + b, tl, S_NAME) || !tl;
         }
-        else if (nops < 16) {
+        else if (nops < 8) {
             ops[nops] = line;
             ops_len[nops++] = n;
         }
