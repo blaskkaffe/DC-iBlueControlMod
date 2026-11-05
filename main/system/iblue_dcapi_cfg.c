@@ -20,6 +20,7 @@ _Static_assert(offsetof(struct iblue_mapent, dst_id) == offsetof(struct map_cfg,
 _Static_assert(offsetof(struct iblue_mapent, perc_deadzone) == offsetof(struct map_cfg, perc_deadzone), "map_cfg layout");
 _Static_assert(offsetof(struct iblue_mapent, algo) == offsetof(struct map_cfg, algo), "map_cfg layout");
 _Static_assert(IBLUE_MAP_MAX == ADAPTER_MAPPING_MAX, "mapping table size");
+_Static_assert(IBLUE_KBM_MAX == KBM_MAX, "generic ids before the combos");
 #define SAME_ID(a, b) ((int)(a) == (int)(b))
 _Static_assert(SAME_ID(IBM_LX_LEFT, PAD_LX_LEFT) && SAME_ID(IBM_RD_UP, PAD_RD_UP) && SAME_ID(IBM_RB_DOWN, PAD_RB_DOWN) &&
                SAME_ID(IBM_MM, PAD_MM) && SAME_ID(IBM_MS, PAD_MS) && SAME_ID(IBM_LM, PAD_LM) && SAME_ID(IBM_LS, PAD_LS) &&
@@ -103,6 +104,29 @@ int IRAM_ATTR iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) {
     return cfg_send(&fb);
 }
 
+/* The factory table has 125 of 128 entries; outside the keyboard mode the keyboard / mouse identity entries are dead weight and make room */
+static bool make_room(uint8_t port) {
+    size_t before = config.in_cfg[port].map_size;
+    size_t after;
+
+    if (config.out_cfg[port].dev_mode == DEV_KB) {
+        return false;
+    }
+    after = iblue_map_drop_kb((struct iblue_mapent *)config.in_cfg[port].map_cfg, before, port);
+    config.in_cfg[port].map_size = (uint8_t)after;
+    return after < before;
+}
+
+static bool restore_kb(uint8_t port) {
+    size_t r = iblue_map_restore_kb((struct iblue_mapent *)config.in_cfg[port].map_cfg, config.in_cfg[port].map_size, ADAPTER_MAPPING_MAX, port);
+
+    if (r == (size_t)-1) {
+        return false;
+    }
+    config.in_cfg[port].map_size = (uint8_t)r;
+    return true;
+}
+
 /* Does it; called by the Bluetooth task (host.c) when the message comes out of the queue. The live configuration is `config`: the
  * Maple side reads it for every frame, but the console only looks at what a port is when it enumerates it, so a change of output
  * or accessory mode needs the wired side to start again (the console sees the controllers leave and come back). */
@@ -116,6 +140,13 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
         case IBLUE_CFG_SET_MODE:
             if (a < WIRED_MAX_DEV && b <= DEV_MOUSE && config.out_cfg[a].dev_mode != b) {
                 config.out_cfg[a].dev_mode = b;
+                if (b == DEV_KB) {
+                    /* the keyboard output needs its identity entries back; with no room the port goes back to the factory table
+                     * (not stored: call sys.revert undoes it) */
+                    if (!restore_kb(a)) {
+                        config_port_factory_map(a);
+                    }
+                }
                 reset = true;
             }
             break;
@@ -136,6 +167,10 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
                 size_t r = iblue_map_replace((struct iblue_mapent *)config.in_cfg[a].map_cfg, config.in_cfg[a].map_size,
                                              ADAPTER_MAPPING_MAX, a, b, mailbox[s].ents, mailbox[s].n);
 
+                if (r == (size_t)-1 && make_room(a)) {
+                    r = iblue_map_replace((struct iblue_mapent *)config.in_cfg[a].map_cfg, config.in_cfg[a].map_size,
+                                          ADAPTER_MAPPING_MAX, a, b, mailbox[s].ents, mailbox[s].n);
+                }
                 if (r != (size_t)-1) {
                     config.in_cfg[a].map_size = (uint8_t)r;
                 }
@@ -148,6 +183,10 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
                 size_t r = iblue_layout_apply(b, (struct iblue_mapent *)config.in_cfg[a].map_cfg, config.in_cfg[a].map_size,
                                               ADAPTER_MAPPING_MAX, a);
 
+                if (r == (size_t)-1 && make_room(a)) {
+                    r = iblue_layout_apply(b, (struct iblue_mapent *)config.in_cfg[a].map_cfg, config.in_cfg[a].map_size,
+                                           ADAPTER_MAPPING_MAX, a);
+                }
                 if (r != (size_t)-1) {
                     config.in_cfg[a].map_size = (uint8_t)r;
                 }

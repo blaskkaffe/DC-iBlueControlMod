@@ -104,6 +104,7 @@ extern struct hw_config hw_config;
 void config_set_rst_bare_core(bool value);
 void hw_config_patch(void);
 void config_init(uint32_t src);
+void config_port_factory_map(uint32_t port); /* the live mapping of one port back to the factory table */
 void config_update(uint32_t dst);
 uint32_t config_get_src(void);
 void config_debug_log(void);

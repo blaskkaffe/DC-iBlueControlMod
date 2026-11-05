@@ -11,11 +11,11 @@ static int fails, checks;
 static struct iblue_mapent map[MAXE];
 static size_t n;
 
-/* what config_init_struct() builds: identity for the first KBM_MAX (here 88) ids, then the ten combo entries (dst 118..127) */
+/* what config_init_struct() builds: identity for the first KBM_MAX (115) ids, then the ten combo entries (dst 118..127) */
 static void default_map(uint8_t port) {
     n = 0;
     memset(map, 0, sizeof(map));
-    for (uint32_t i = 0; i < 88; i++) {
+    for (uint32_t i = 0; i < 115; i++) {
         map[n++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, port, 100, 50, 135, 0, 0};
     }
     for (uint32_t k = 0; k < 10; k++) {
@@ -158,10 +158,10 @@ int main(void) {
     {
         size_t keyboard = 0, combos = 0;
         for (size_t i = 0; i < n; i++) {
-            if (map[i].dst_btn >= 32 && map[i].dst_btn < 88) { keyboard++; }
+            if (map[i].dst_btn >= 32 && map[i].dst_btn < 115) { keyboard++; }
             if (map[i].dst_btn >= 118) { combos++; }
         }
-        CHECK(keyboard == 56);
+        CHECK(keyboard == 83);
         CHECK(combos == 10);
     }
 
@@ -234,10 +234,10 @@ int main(void) {
         {
             size_t keyboard = 0, combos = 0;
             for (size_t i = 0; i < n; i++) {
-                if (map[i].dst_btn >= 32 && map[i].dst_btn < 88) { keyboard++; }
+                if (map[i].dst_btn >= 32 && map[i].dst_btn < 115) { keyboard++; }
                 if (map[i].dst_btn >= 118) { combos++; }
             }
-            CHECK(keyboard == 56 && combos == 10);           /* keyboard, mouse and combo entries are kept */
+            CHECK(keyboard == 83 && combos == 10);           /* keyboard, mouse and combo entries are kept */
         }
     }
     CHECK(iblue_layout_apply(2, map, n, MAXE, 0) == (size_t)-1);
@@ -250,7 +250,7 @@ int main(void) {
     default_map(0);
     {
         size_t base = n;
-        for (uint32_t i = 0; i < 88; i++) {
+        for (uint32_t i = 0; i < 115; i++) {
             map[n++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, 1, 100, 50, 135, 0, 0};
         }
         n = iblue_layout_apply(0, map, n, 400, 0);
@@ -258,6 +258,26 @@ int main(void) {
         CHECK(iblue_layout_match(map, n, 1) == 1);
         CHECK(iblue_layout_match(map, n, 0) == 0);
         (void)base;
+    }
+
+    /* room: drop the keyboard / mouse identity entries, restore them */
+    {
+        struct iblue_mapent before[200];
+        size_t m;
+        default_map(1);
+        memcpy(before, map, sizeof(before));
+        CHECK(n == 125);
+        map[n++] = (struct iblue_mapent){40, 41, 1, 100, 50, 135, 0, 0};          /* a keyboard key on another destination: kept */
+        map[n++] = (struct iblue_mapent){40, 40, 2, 100, 50, 135, 0, 0};          /* identity of ANOTHER port: kept */
+        m = iblue_map_drop_kb(map, n, 1);
+        CHECK(m == 125 - 83 + 2);
+        CHECK(iblue_map_size_after(map, m, 1, (uint32_t)iblue_out_find("Z", 1), 4, 1) == m - 1 + 4);
+        n = m;
+        n = iblue_map_restore_kb(map, n, 128, 1);
+        CHECK(n == m + 83);
+        n = m;
+        CHECK(iblue_map_restore_kb(map, n, m + 10, 1) == (size_t)-1);              /* no room: refused, nothing half done is relied on */
+        (void)before;
     }
 
     printf("mapcfg: %d checks, %d failed\n", checks, fails);

@@ -203,7 +203,7 @@ static void replace_props(long iters) {
 /* layouts */
 static void factory_default(ent_t *t, size_t *n, uint8_t port) {
     *n = 0;
-    for (uint32_t i = 0; i < 88; i++) { t[(*n)++] = (ent_t){(uint8_t)i, (uint8_t)i, port, 100, 50, 135, 0, 0}; }
+    for (uint32_t i = 0; i < 115; i++) { t[(*n)++] = (ent_t){(uint8_t)i, (uint8_t)i, port, 100, 50, 135, 0, 0}; }
     for (uint32_t k = 0; k < 10; k++) { t[(*n)++] = (ent_t){(uint8_t)(20 + k), (uint8_t)(118 + k), port, 100, 50, 135, 0, 0}; }
 }
 static int ent_cmp(const void *a, const void *b) { return memcmp(a, b, sizeof(ent_t)); }

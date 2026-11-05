@@ -400,7 +400,7 @@ static void IRAM_ATTR map_set(struct out *o, const char *key, size_t klen, uint3
         size_t have = 0;
         const struct iblue_mapent *live = iblue_dcapi_cfg_map(port, &have);
 
-        if (live && iblue_map_size_after(live, have, (uint8_t)port, (uint32_t)out, (size_t)c) > IBLUE_MAP_MAX) {
+        if (live && iblue_map_size_after(live, have, (uint8_t)port, (uint32_t)out, (size_t)c, port_mode[port] != 2) > IBLUE_MAP_MAX) {
             line_err(o, key, klen, S_FULL);
             return;
         }

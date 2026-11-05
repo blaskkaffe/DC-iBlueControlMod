@@ -50,6 +50,7 @@ static void apply_msg(const struct msg *m) {
                 size_t r;
                 for (int k = 0; k < m->n; k++) { es[k] = m->e[k]; }
                 r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, es, m->n);
+                if (r == (size_t)-1) { cfg_n[a] = iblue_map_drop_kb(cfg_map[a], cfg_n[a], a); r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, es, m->n); }
                 if (r != (size_t)-1) { cfg_n[a] = r; }
             }
             break;
@@ -68,7 +69,7 @@ static void drain(void) {
 }
 static void factory(uint8_t port) {
     cfg_n[port] = 0;
-    for (uint32_t i = 0; i < 88; i++) { cfg_map[port][cfg_n[port]++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, port, 100, 50, 135, 0, 0}; }
+    for (uint32_t i = 0; i < 115; i++) { cfg_map[port][cfg_n[port]++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, port, 100, 50, 135, 0, 0}; }
     for (uint32_t k = 0; k < 10; k++) { cfg_map[port][cfg_n[port]++] = (struct iblue_mapent){(uint8_t)(20 + k), (uint8_t)(118 + k), port, 100, 50, 135, 0, 0}; }
 }
 
@@ -215,13 +216,31 @@ int main(void) {
         factory(1);
     }
 
-    /* ---- a table with no room: err full, nothing queued */
+    /* ---- a table with no room (keyboard mode: nothing may be dropped): err full, nothing queued */
     {
         qn = 0;
+        iblue_dcapi_port_set(0, IBLUE_PORT_BT, 2, 0, 1, 1);
         factory(0);
-        for (size_t i = 0; cfg_n[0] < 127; i++) { cfg_map[0][cfg_n[0]++] = (struct iblue_mapent){50, 50, 0, 100, 50, 135, 0, 0}; }   /* keyboard sources: never touched */
+        for (; cfg_n[0] < 127;) { cfg_map[0][cfg_n[0]++] = (struct iblue_mapent){50, 40, 0, 100, 50, 135, 0, 0}; }   /* other destinations: never touched */
         SAME(ask("dc1\nset port.A.map.Z lb, rb, lt, rt\n"), "dc1\nerr port.A.map.Z full no room in the mapping table\n");
         CHECK(qn == 0);
+        iblue_dcapi_port_set(0, IBLUE_PORT_BT, 0, 0, 1, 1);
+        factory(0);
+    }
+
+    /* ---- outside the keyboard mode the identity entries of keyboard and mouse are dropped when the room is needed; pad entries and combos stay */
+    {
+        size_t combos = 0, pad_entries = 0;
+        qn = 0;
+        factory(0);
+        SAME(ask("dc1\nset port.A.map.Z lb, rb, lt, rt\nset port.A.map.C lb, rb, lt, rt\nset port.A.map.X lb, rb, lt, rt\nset port.A.map.Y lb, rb, lt, rt\n"
+                 "set port.A.map.START a, b, x, y\nset port.A.map.D lb, rb, lt, rt\n"),
+             "dc1\nok port.A.map.Z lb, rb, lt, rt\nok port.A.map.C lb, rb, lt, rt\nok port.A.map.X lb, rb, lt, rt\nok port.A.map.Y lb, rb, lt, rt\n"
+             "ok port.A.map.START a, b, x, y\nok port.A.map.D lb, rb, lt, rt\n");
+        drain();
+        for (size_t i = 0; i < cfg_n[0]; i++) { combos += cfg_map[0][i].dst_btn >= 118; pad_entries += cfg_map[0][i].dst_btn < 32; }
+        CHECK(combos == 10 && cfg_n[0] <= 128 && pad_entries == 32 - 6 + 6 * 4);   /* 32 pad ids; six outputs of one entry now have four */
+        SAME(ask("dc1\nget port.A.map.Z\nget port.A.map.START\nget port.A.map.A\n"), "dc1\nok port.A.map.Z lb, rb, lt, rt\nok port.A.map.START a, b, x, y\nok port.A.map.A a\n");
         factory(0);
     }
 
@@ -234,7 +253,7 @@ int main(void) {
         CHECK(qn == 3);   /* one message per output: C, D, Z */
         drain();
         SAME(ask("dc1\nget port.A.map.C\nget port.A.map.D\nget port.A.map.Z\n"), "dc1\nok port.A.map.C lt:threshold=78, rb\nok port.A.map.D none\nok port.A.map.Z lb\n");
-        CHECK(cfg_n[0] == 98);                                                                /* C: -1 +2, D: -1, Z: -1 +1 */
+        CHECK(cfg_n[0] == 125);                                                                /* C: -1 +2, D: -1, Z: -1 +1 */
     }
 
     /* ---- layout set queues one message; a refused one none */

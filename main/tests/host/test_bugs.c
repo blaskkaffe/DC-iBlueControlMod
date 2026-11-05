@@ -38,13 +38,14 @@ static void apply_msg(const struct msg *m) {
         size_t r;
         for (int k = 0; k < m->n; k++) { es[k] = m->e[k]; }
         r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, es, m->n);
+        if (r == (size_t)-1) { cfg_n[a] = iblue_map_drop_kb(cfg_map[a], cfg_n[a], a); r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, es, m->n); }
         if (r != (size_t)-1) { cfg_n[a] = r; }
     }
 }
 static void drain(void) { for (int i = 0; i < qn; i++) { apply_msg(&q[i]); } qn = 0; }
 static void factory(uint8_t port) {
     cfg_n[port] = 0;
-    for (uint32_t i = 0; i < 88; i++) { cfg_map[port][cfg_n[port]++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, port, 100, 50, 135, 0, 0}; }
+    for (uint32_t i = 0; i < 115; i++) { cfg_map[port][cfg_n[port]++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, port, 100, 50, 135, 0, 0}; }
     for (uint32_t k = 0; k < 10; k++) { cfg_map[port][cfg_n[port]++] = (struct iblue_mapent){(uint8_t)(20 + k), (uint8_t)(118 + k), port, 100, 50, 135, 0, 0}; }
 }
 

@@ -236,7 +236,7 @@ int main(void) {
 
     /* ---- layouts and the mapping of an output (port.X.layout, port.X.layouts, port.X.map.<OUTPUT>) */
     iblue_dcapi_port_count(2);
-    for (uint32_t i = 0; i < 88; i++) {
+    for (uint32_t i = 0; i < 115; i++) {
         live[0][live_n[0]++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, 0, 100, 50, 135, 0, 0};   /* BlueRetro's default, port A */
     }
     live[1][live_n[1]++] = (struct iblue_mapent){IBM_RB_DOWN, IBM_RB_DOWN, 1, 100, 50, 135, 0, 0};

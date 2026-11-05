@@ -510,16 +510,51 @@ static int IRAM_ATTR is_pad_entry_of(const struct iblue_mapent *e, uint8_t port,
     return e->dst_id == port && e->dst_btn == dst && e->src_btn < IBM_PAD_IDS && iblue_in_name(e->src_btn);
 }
 
-size_t IRAM_ATTR iblue_map_size_after(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, size_t nents) {
+int IRAM_ATTR iblue_map_is_kb_identity(const struct iblue_mapent *e, uint8_t port) {
+    return e->dst_id == port && e->dst_btn >= IBM_PAD_IDS && e->dst_btn < IBLUE_KBM_MAX && e->src_btn == e->dst_btn;
+}
+
+size_t IRAM_ATTR iblue_map_size_after(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, size_t nents, int reclaim) {
     uint8_t dst = iblue_out_dst(out);
     size_t keep = 0;
 
     for (size_t i = 0; i < n; i++) {
-        if (!is_pad_entry_of(&map[i], port, dst)) {
+        if (!is_pad_entry_of(&map[i], port, dst) && !(reclaim && iblue_map_is_kb_identity(&map[i], port))) {
             keep++;
         }
     }
     return keep + nents;
+}
+
+size_t IRAM_ATTR iblue_map_drop_kb(struct iblue_mapent *map, size_t n, uint8_t port) {
+    size_t w = 0;
+
+    for (size_t i = 0; i < n; i++) {
+        if (!iblue_map_is_kb_identity(&map[i], port)) {
+            if (w != i) {
+                map[w] = map[i];
+            }
+            w++;
+        }
+    }
+    return w;
+}
+
+size_t IRAM_ATTR iblue_map_restore_kb(struct iblue_mapent *map, size_t n, size_t max, uint8_t port) {
+    for (uint32_t id = IBM_PAD_IDS; id < IBLUE_KBM_MAX; id++) {
+        int have = 0;
+
+        for (size_t i = 0; i < n && !have; i++) {
+            have = map[i].dst_id == port && map[i].dst_btn == id && map[i].src_btn == id;
+        }
+        if (!have) {
+            if (n >= max) {
+                return (size_t)-1;
+            }
+            map[n++] = (struct iblue_mapent){(uint8_t)id, (uint8_t)id, port, 100, 50, 135, 0, 0};
+        }
+    }
+    return n;
 }
 
 size_t IRAM_ATTR iblue_map_replace(struct iblue_mapent *map, size_t n, size_t max, uint8_t port, uint32_t out, const struct iblue_mapent *ents, size_t nents) {

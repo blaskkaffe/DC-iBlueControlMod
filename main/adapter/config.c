@@ -141,6 +141,7 @@ static uint8_t config_default_combo[BR_COMBO_CNT] = {
 static bool config_rst_bare_core = false;
 
 static void config_init_struct(struct config *data);
+static void config_init_port_map(struct config *data, uint32_t i);
 static void config_init_nvs_patch(struct config *data);
 static int32_t config_load_from_file(struct config *data, char *filename);
 static int32_t config_store_on_file(struct config *data, char *filename);
@@ -238,6 +239,38 @@ static int32_t hw_config_lookup_key_name(const char* key) {
     return -1;
 }
 
+static void config_init_port_map(struct config *data, uint32_t i) {
+    data->in_cfg[i].map_size = KBM_MAX + BR_COMBO_CNT;
+    uint32_t j = 0;
+    for (; j < KBM_MAX; j++) {
+        data->in_cfg[i].map_cfg[j].src_btn = j;
+        data->in_cfg[i].map_cfg[j].dst_btn = j;
+        data->in_cfg[i].map_cfg[j].dst_id = i;
+        data->in_cfg[i].map_cfg[j].perc_max = 100;
+        data->in_cfg[i].map_cfg[j].perc_threshold = 50;
+        data->in_cfg[i].map_cfg[j].perc_deadzone = 135;
+        data->in_cfg[i].map_cfg[j].turbo = 0;
+        data->in_cfg[i].map_cfg[j].algo = 0;
+    }
+    for (uint32_t k = 0; k < BR_COMBO_CNT; j++, k++) {
+        data->in_cfg[i].map_cfg[j].src_btn = config_default_combo[k];
+        data->in_cfg[i].map_cfg[j].dst_btn = k + BR_COMBO_BASE_1;
+        data->in_cfg[i].map_cfg[j].dst_id = i;
+        data->in_cfg[i].map_cfg[j].perc_max = 100;
+        data->in_cfg[i].map_cfg[j].perc_threshold = 50;
+        data->in_cfg[i].map_cfg[j].perc_deadzone = 135;
+        data->in_cfg[i].map_cfg[j].turbo = 0;
+        data->in_cfg[i].map_cfg[j].algo = 0;
+    }
+}
+
+/* One port back to the factory table (identity over every generic id plus the combos); the live config, nothing stored */
+void config_port_factory_map(uint32_t port) {
+    if (port < WIRED_MAX_DEV) {
+        config_init_port_map(&config, port);
+    }
+}
+
 static void config_init_struct(struct config *data) {
     data->magic = CONFIG_MAGIC;
     data->global_cfg.system_cfg = WIRED_AUTO;
@@ -250,28 +283,7 @@ static void config_init_struct(struct config *data) {
         data->out_cfg[i].acc_mode = ACC_NONE;
         data->in_cfg[i].bt_dev_id = 0x00; /* Not used placeholder */
         data->in_cfg[i].bt_subdev_id = 0x00;  /* Not used placeholder */
-        data->in_cfg[i].map_size = KBM_MAX + BR_COMBO_CNT;
-        uint32_t j = 0;
-        for (; j < KBM_MAX; j++) {
-            data->in_cfg[i].map_cfg[j].src_btn = j;
-            data->in_cfg[i].map_cfg[j].dst_btn = j;
-            data->in_cfg[i].map_cfg[j].dst_id = i;
-            data->in_cfg[i].map_cfg[j].perc_max = 100;
-            data->in_cfg[i].map_cfg[j].perc_threshold = 50;
-            data->in_cfg[i].map_cfg[j].perc_deadzone = 135;
-            data->in_cfg[i].map_cfg[j].turbo = 0;
-            data->in_cfg[i].map_cfg[j].algo = 0;
-        }
-        for (uint32_t k = 0; k < BR_COMBO_CNT; j++, k++) {
-            data->in_cfg[i].map_cfg[j].src_btn = config_default_combo[k];
-            data->in_cfg[i].map_cfg[j].dst_btn = k + BR_COMBO_BASE_1;
-            data->in_cfg[i].map_cfg[j].dst_id = i;
-            data->in_cfg[i].map_cfg[j].perc_max = 100;
-            data->in_cfg[i].map_cfg[j].perc_threshold = 50;
-            data->in_cfg[i].map_cfg[j].perc_deadzone = 135;
-            data->in_cfg[i].map_cfg[j].turbo = 0;
-            data->in_cfg[i].map_cfg[j].algo = 0;
-        }
+        config_init_port_map(data, i);
     }
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
     /* The game id arrives through the VMU of port A, so a new configuration has it on */
