@@ -89,7 +89,7 @@ int main(void) {
     CHECK(iblue_dz_x10000(208) == 1000);                    /* level 3 = 10 % */
     CHECK(iblue_dz_x10000(213) == 1500);
     CHECK(iblue_dz_x10000(218) == 2000);                    /* level 5 = 20 % */
-    CHECK(iblue_dz_x10000(255) == 5700);
+    CHECK(iblue_dz_x10000(218) == 2000 && iblue_dz_x10000(255) == 2000);   /* nothing above 20 % */
     for (uint32_t r = 0; r < 200; r++) { CHECK(iblue_dz_x10000((uint8_t)r) == r); }
 
     /* parse: plain, defaults */

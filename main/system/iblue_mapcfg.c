@@ -164,7 +164,7 @@ int IRAM_ATTR iblue_dz_level(uint8_t raw) {
 }
 
 uint32_t IRAM_ATTR iblue_dz_x10000(uint8_t raw) {
-    return raw <= 200 ? raw : (uint32_t)(raw - 198) * 100;
+    return raw <= 200 ? raw : (raw > 218 ? 2000 : (uint32_t)(raw - 198) * 100);
 }
 
 /* ---- parse */
@@ -210,7 +210,7 @@ static int IRAM_ATTR parse_deadzone(const char *v, size_t n, uint8_t *raw) {
             *raw = (uint8_t)hund;
             return 0;
         }
-        if (frac || whole < 3 || whole > 57) {
+        if (frac || whole < 3 || whole > 20) {
             return 1;
         }
         *raw = (uint8_t)(whole + 198);
@@ -413,7 +413,7 @@ static void IRAM_ATTR w_deadzone(struct wr *w, uint8_t raw) {
         w_uint(w, (uint32_t)level);
     }
     else if (raw > 200) {
-        w_uint(w, (uint32_t)raw - 198);
+        w_uint(w, raw > 218 ? 20 : (uint32_t)raw - 198); /* above 20 % the byte counts as 20 % */
         w_str(w, W_PCT);
     }
     else {

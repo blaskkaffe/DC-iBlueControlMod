@@ -9,7 +9,7 @@ typedef struct iblue_mapent ent_t;
 static uint32_t names[32], nnames;
 
 static const char *const optsets[] = {
-    "", ":deadzone=off", ":deadzone=3", ":deadzone=17%", ":deadzone=1.5%", ":deadzone=0.01%", ":deadzone=57%", ":threshold=0",
+    "", ":deadzone=off", ":deadzone=3", ":deadzone=17%", ":deadzone=1.5%", ":deadzone=0.01%", ":deadzone=20%", ":threshold=0",
     ":threshold=100", ":scale=0", ":scale=255", ":turbo=255", ":algo=aggressive", ":algo=SCURVE",
     ":deadzone=2:threshold=7:scale=9:turbo=1:algo=wide", ":algo=relaxed:turbo=3", ":deadzone=5:deadzone=off",
 };
@@ -76,12 +76,11 @@ static void roundtrip_options(void) {
                 ent_t e = {IBM_RB_DOWN, iblue_out_dst(out), 2, 100, 50, 135, 0, 0}, f;
                 char t[80];
                 const char *why;
-                if (which == 0) { e.perc_deadzone = (uint8_t)v; }
+                if (which == 0) { if (v > 218) { continue; } e.perc_deadzone = (uint8_t)v; }   /* above 218 the byte reads as 20 % and is not written back */
                 if (which == 1) { if (v > 100) { continue; } e.perc_threshold = (uint8_t)v; }
                 if (which == 2) { e.perc_max = (uint8_t)v; }
                 if (which == 3) { e.turbo = (uint8_t)v; }
-                /* algo 5 (passthrough) reads past the end of algo_names[] (known bug, test_bugs.c): left out here so this test can run */
-                if (which == 4) { if (v > 4) { continue; } e.algo = (uint8_t)v; }
+                if (which == 4) { if (v > 5) { continue; } e.algo = (uint8_t)v; }
                 iblue_map_render(&e, 1, 2, out, t, sizeof(t));
                 CHECKM(iblue_map_parse(t, strlen(t), out, 2, &f, &why) == 1 && memcmp(&e, &f, sizeof(e)) == 0, "option %d value %u: [%s]", which, v, t);
             }
@@ -298,7 +297,7 @@ static void deadzone_codec(void) {
     char v[24];
 
     for (uint32_t r = 0; r <= 255; r++) {
-        uint32_t want = r <= 200 ? r : (r - 198) * 100;
+        uint32_t want = r <= 200 ? r : (r > 218 ? 2000 : (r - 198) * 100);
         CHECK(iblue_dz_x10000((uint8_t)r) == want);
         if (r <= 200) { CHECK(iblue_dz_x10000((uint8_t)r) == r); }                       /* old configurations: unchanged */
     }
@@ -319,7 +318,7 @@ static void deadzone_codec(void) {
     CHECK(!dz_parse("off", &raw) && raw == 0);
     CHECK(!dz_parse("OFF", &raw) && raw == 0);
     for (int l = 0; l <= 5; l++) { snprintf(v, sizeof(v), "%d", l); CHECK(!dz_parse(v, &raw) && raw == iblue_dz_from_level(l)); }
-    for (uint32_t pct = 3; pct <= 57; pct++) {
+    for (uint32_t pct = 3; pct <= 20; pct++) {
         snprintf(v, sizeof(v), "%u%%", pct);
         CHECK(!dz_parse(v, &raw) && raw == pct + 198 && iblue_dz_x10000(raw) == pct * 100);   /* n% is exactly n percent */
     }

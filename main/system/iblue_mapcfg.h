@@ -22,7 +22,7 @@
  *
  * Deadzone levels (decision, 2026-11-05): off, 1 = BlueRetro's 1.35 %, 2 = 5 %, 3 = 10 %, 4 = 15 %, 5 = 20 %. BlueRetro's byte
  * perc_deadzone held hundredths of a percent (0..255 = up to 2.55 %). Values up to 200 keep that meaning, so existing configurations
- * are unchanged; 201 to 255 now mean (value - 198) percent (3 % to 57 %): iblue_dz_x10000() is the one place that knows, adapter.c uses it.
+ * are unchanged; 201 to 218 now mean (value - 198) percent (3 % to 20 %; more is never needed), higher values count as 20 %: iblue_dz_x10000() is the one place that knows, adapter.c uses it.
  * SPDX-License-Identifier: Apache-2.0
  */
 
