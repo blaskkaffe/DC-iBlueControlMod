@@ -393,7 +393,7 @@ enum {
     FB_TYPE_MEM_WRITE,
     FB_TYPE_GAME_ID,
     FB_TYPE_SYS_ID,
-    FB_TYPE_API_CFG, /* the DC API changes the configuration: data[0] = IBLUE_CFG_*, data[1], data[2] (system/iblue_dcapi.h) */
+    FB_TYPE_API_CFG, /* the DC API changes the configuration: data[0] = IBLUE_CFG_*, data[1], data[2], data[3] (system/iblue_dcapi.h); travels in the DC API's own queues, not this one */
 };
 
 enum {
@@ -592,7 +592,6 @@ void adapter_fb_stop_timer_start(uint8_t dev_id, uint64_t dur_us);
 void adapter_fb_stop_timer_stop(uint8_t dev_id);
 bool adapter_bridge_fb(struct raw_fb *fb_data, struct bt_data *bt_data);
 void adapter_q_fb(struct raw_fb *fb_data);
-int adapter_q_fb_status(struct raw_fb *fb_data); /* the same, and 1 = queued, 0 = dropped */
 void adapter_toggle_fb(uint32_t wired_id, uint32_t duration_us, uint8_t lf_pwr, uint8_t hf_pwr);
 void adapter_init(void);
 void adapter_meta_init(void);

@@ -52,6 +52,7 @@ DSTR(S_IBLUE, "iblue");
 DSTR(S_UNKNOWN_VERSION, "unknown");
 DSTR(S_PORT, "port.");
 DSTR(S_EMPTY, " empty give a value or none");
+DSTR(S_FULL, " full no room in the mapping table");
 DSTR(S_BUSY, " busy try again");
 DSTR(S_TOOLONG, "err request too long\n");
 DSTR(S_NOPORT, " unavailable no such port");
@@ -394,6 +395,15 @@ static void IRAM_ATTR map_set(struct out *o, const char *key, size_t klen, uint3
     if (c < 0) {
         line_err(o, key, klen, why);
         return;
+    }
+    {
+        size_t have = 0;
+        const struct iblue_mapent *live = iblue_dcapi_cfg_map(port, &have);
+
+        if (live && iblue_map_size_after(live, have, (uint8_t)port, (uint32_t)out, (size_t)c) > IBLUE_MAP_MAX) {
+            line_err(o, key, klen, S_FULL);
+            return;
+        }
     }
     if (!iblue_dcapi_cfg_set_map((uint8_t)port, (uint8_t)out, ents, (size_t)c)) {
         line_err(o, key, klen, S_BUSY); /* nothing was changed */

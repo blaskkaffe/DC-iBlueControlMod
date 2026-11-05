@@ -215,6 +215,16 @@ int main(void) {
         factory(1);
     }
 
+    /* ---- a table with no room: err full, nothing queued */
+    {
+        qn = 0;
+        factory(0);
+        for (size_t i = 0; cfg_n[0] < 127; i++) { cfg_map[0][cfg_n[0]++] = (struct iblue_mapent){50, 50, 0, 100, 50, 135, 0, 0}; }   /* keyboard sources: never touched */
+        SAME(ask("dc1\nset port.A.map.Z lb, rb, lt, rt\n"), "dc1\nerr port.A.map.Z full no room in the mapping table\n");
+        CHECK(qn == 0);
+        factory(0);
+    }
+
     /* ---- whole pipeline through the model: several sets, then the new table is what get shows */
     {
         qn = 0;

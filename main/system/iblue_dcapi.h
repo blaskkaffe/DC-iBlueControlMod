@@ -80,6 +80,10 @@ int iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct iblue_mapent
 const struct iblue_mapent *iblue_dcapi_cfg_map(uint32_t port, size_t *count);
 struct raw_fb;
 void iblue_dcapi_cfg_apply(const struct raw_fb *fb);
+/* The requests have queues of their own (the shared feedback queue has one producer by design, and these have two: the Maple side on
+ * core 1 and the BLE side on core 0, one queue each, so every queue keeps one producer and one consumer). Not muted by rumble_mute. */
+void iblue_dcapi_cfg_init(void);
+void iblue_dcapi_cfg_poll(void); /* the consumer: bt_fb_task calls it every loop and it applies what is waiting */
 /* The live configuration was replaced by a stored one (a new game id): nothing is waiting to be saved any more */
 void iblue_dcapi_unsaved_clear(void);
 

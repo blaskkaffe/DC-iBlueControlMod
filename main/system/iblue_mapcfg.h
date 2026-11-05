@@ -71,6 +71,8 @@ uint32_t iblue_dz_x10000(uint8_t raw);                /* the fraction of the axi
 int iblue_map_parse(const char *val, size_t len, uint32_t out, uint8_t port, struct iblue_mapent *ents, const char **why);
 
 /* The value text of one output from the entries of a port. Returns the length written (NUL terminated, cut at an entry if cap is too small). */
+/* How many entries the table has after iblue_map_replace() of this output with nents entries (what the engine checks against the size of the table before it says ok). */
+size_t iblue_map_size_after(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, size_t nents);
 size_t iblue_map_render(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, char *buf, size_t cap);
 /* The same, and *cut = 1 when the value did not fit (what is in buf is then only the first entries, or empty): a caller that must not
  * show a wrong mapping drops the line. */

@@ -24,6 +24,7 @@
 #include "bluetooth/host.h"
 #include "tests/cmds.h"
 #include "system/iblue_mapcfg.h"
+#include "system/iblue_dcapi.h"
 
 const uint32_t hat_to_ld_btns[16] = {
     BIT(PAD_LD_UP), BIT(PAD_LD_UP) | BIT(PAD_LD_RIGHT), BIT(PAD_LD_RIGHT), BIT(PAD_LD_DOWN) | BIT(PAD_LD_RIGHT),
@@ -485,17 +486,11 @@ bool adapter_bridge_fb(struct raw_fb *fb_data, struct bt_data *bt_data) {
     return ret;
 }
 
-/* 1 = queued, 0 = dropped (muted or the queue is full) */
-int IRAM_ATTR adapter_q_fb_status(struct raw_fb *fb_data) {
-    if (!rumble_mute) {
-        return queue_bss_enqueue(wired_adapter.input_q_hdl, (uint8_t *)fb_data, sizeof(*fb_data)) >= 0;
-    }
-    return 0;
-}
-
 void IRAM_ATTR adapter_q_fb(struct raw_fb *fb_data) {
     /* Best efford only on fb */
-    (void)adapter_q_fb_status(fb_data);
+    if (!rumble_mute) {
+        queue_bss_enqueue(wired_adapter.input_q_hdl, (uint8_t *)fb_data, sizeof(*fb_data));
+    }
 }
 
 void adapter_toggle_fb(uint32_t wired_id, uint32_t duration_us, uint8_t lf_pwr, uint8_t hf_pwr) {
@@ -544,6 +539,9 @@ void adapter_init(void) {
     if (wired_adapter.input_q_hdl == NULL) {
         ets_printf("# %s: Failed to create fb queue\n", __FUNCTION__);
     }
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+    iblue_dcapi_cfg_init();
+#endif
 }
 
 void adapter_meta_init(void) {

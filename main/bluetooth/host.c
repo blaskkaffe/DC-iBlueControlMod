@@ -252,16 +252,15 @@ static void bt_fb_task(void *param) {
                         iblue_dcapi_unsaved_clear();
                     }
                     break;
-#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
-                case FB_TYPE_API_CFG:
-                    iblue_dcapi_cfg_apply(fb_data);
-                    break;
-#endif
                 default:
                     break;
             }
             queue_bss_return(wired_adapter.input_q_hdl, (uint8_t *)fb_data, fb_len);
         }
+
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+        iblue_dcapi_cfg_poll();
+#endif
 
         /* TX Feedback every 10 ms if rumble on, every 3 sec otherwise */
         if (delay_cnt-- == 0 || fb_changed) {

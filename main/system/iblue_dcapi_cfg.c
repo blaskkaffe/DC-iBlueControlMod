@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <esp_attr.h>
+#include <esp_cpu.h>
+#include "queue_bss.h"
 #include "adapter/adapter.h"
 #include "adapter/config.h"
 #include "system/manager.h"
@@ -38,6 +40,21 @@ const struct iblue_mapent * IRAM_ATTR iblue_dcapi_cfg_map(uint32_t port, size_t 
  * exchange because the Maple interrupt and the Bluetooth task both ask; whoever finds all taken gets "busy". If the message cannot be
  * queued the slot is freed again. */
 #define MAILBOX_SLOTS 8
+/* one queue per producer: core 1 = the Maple side, core 0 = the BLE side (the queue holds 15 usable items) */
+static queue_bss_handle_t cfgq[2];
+
+void iblue_dcapi_cfg_init(void) {
+    for (int i = 0; i < 2; i++) {
+        cfgq[i] = queue_bss_init(16, sizeof(struct raw_fb));
+    }
+}
+
+static int IRAM_ATTR cfg_send(struct raw_fb *fb) {
+    queue_bss_handle_t q = cfgq[esp_cpu_get_core_id() ? 1 : 0];
+
+    return q && queue_bss_enqueue(q, (uint8_t *)fb, sizeof(*fb)) >= 0;
+}
+
 static struct {
     uint32_t taken;
     uint8_t n;
@@ -67,7 +84,7 @@ int IRAM_ATTR iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct ib
     fb.data[1] = port;
     fb.data[2] = out;
     fb.data[3] = (uint8_t)s;
-    if (!adapter_q_fb_status(&fb)) {
+    if (!cfg_send(&fb)) {
         __atomic_store_n(&mailbox[s].taken, 0, __ATOMIC_RELEASE);
         return 0;
     }
@@ -83,7 +100,7 @@ int IRAM_ATTR iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) {
     fb.data[0] = op;
     fb.data[1] = a;
     fb.data[2] = b;
-    return adapter_q_fb_status(&fb);
+    return cfg_send(&fb);
 }
 
 /* Does it; called by the Bluetooth task (host.c) when the message comes out of the queue. The live configuration is `config`: the
@@ -154,6 +171,18 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
     printf("# %s: op %u port %u value %u%s\n", __FUNCTION__, (unsigned)op, (unsigned)a, (unsigned)b, reset ? " (wired restart)" : "");
     if (reset) {
         sys_mgr_cmd(SYS_MGR_CMD_WIRED_RST);
+    }
+}
+
+void iblue_dcapi_cfg_poll(void) {
+    for (int i = 0; i < 2; i++) {
+        uint32_t *len;
+        uint8_t *item;
+
+        while (cfgq[i] && (item = queue_bss_dequeue(cfgq[i], &len))) {
+            iblue_dcapi_cfg_apply((const struct raw_fb *)item);
+            queue_bss_return(cfgq[i], item, len);
+        }
     }
 }
 

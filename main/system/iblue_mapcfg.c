@@ -510,6 +510,18 @@ static int IRAM_ATTR is_pad_entry_of(const struct iblue_mapent *e, uint8_t port,
     return e->dst_id == port && e->dst_btn == dst && e->src_btn < IBM_PAD_IDS && iblue_in_name(e->src_btn);
 }
 
+size_t IRAM_ATTR iblue_map_size_after(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, size_t nents) {
+    uint8_t dst = iblue_out_dst(out);
+    size_t keep = 0;
+
+    for (size_t i = 0; i < n; i++) {
+        if (!is_pad_entry_of(&map[i], port, dst)) {
+            keep++;
+        }
+    }
+    return keep + nents;
+}
+
 size_t IRAM_ATTR iblue_map_replace(struct iblue_mapent *map, size_t n, size_t max, uint8_t port, uint32_t out, const struct iblue_mapent *ents, size_t nents) {
     uint8_t dst = iblue_out_dst(out);
     size_t keep = 0, w = 0;
