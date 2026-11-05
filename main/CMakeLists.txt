@@ -71,7 +71,6 @@ set(srcs
     "system/iblue_dcapi_cfg.c"
     "system/iblue_gesture.c"
     "system/iblue_tap.c"
-    "system/iblue_profile.c"
     "system/bare_metal_app_cpu.c"
     "system/core0_stall.c"
     "system/core0_stall_highint_hdl.S"

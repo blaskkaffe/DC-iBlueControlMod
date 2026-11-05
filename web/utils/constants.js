@@ -515,10 +515,6 @@ export const maxThres = 100;
 export const cfg_cmd_get_iblue_info = 0x40;
 export const cfg_cmd_get_gestures = 0x41;
 export const cfg_cmd_set_gestures = 0x42;
-export const cfg_cmd_get_profile = 0x43;
-export const cfg_cmd_profile_save = 0x44;
-export const cfg_cmd_profile_load = 0x45;
-export const cfg_cmd_profile_delete = 0x46;
 
 /* What a tap gesture can do: the numbers are what the firmware knows (system/iblue_gesture.h). */
 export const ibluGestureNames = ['Single tap', 'Double tap', 'Triple tap'];
@@ -528,10 +524,5 @@ export const ibluActionNames = [
     'Stop searching',
     'Next LED colour (orange, blue, custom)',
     'Disconnect all controllers',
-    'Load profile 1',
-    'Load profile 2',
-    'Load profile 3',
-    'Load profile 4',
-    'Load the next saved profile',
 ];
-export const ibluProfileResult = ['OK', 'That profile slot is empty', 'Bad request', 'Could not write it in the adapter'];
+export const ibluResult = ['OK', 'Not used', 'Bad request', 'Could not write it in the adapter'];

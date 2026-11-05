@@ -22,7 +22,6 @@
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 #include "system/iblue_gesture.h"
 #include "system/iblue_dcapi.h"
-#include "system/iblue_profile.h"
 #endif
 
 #define ATT_MAX_LEN 512
@@ -37,13 +36,9 @@
 #define CFG_CMD_GET_FW_NAME 0x07
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 /* iBlueControlMod additions (the hosted web config uses them; other firmware answers a read with the ABI version) */
-#define CFG_CMD_GET_IBLUE_INFO 0x40   /* read: "iBLU", version, features, gestures, profiles, actions */
+#define CFG_CMD_GET_IBLUE_INFO 0x40   /* read: "iBLU", version, features, gestures, 0 (was profiles), actions */
 #define CFG_CMD_GET_GESTURES 0x41     /* read: the action of each tap gesture */
 #define CFG_CMD_SET_GESTURES 0x42     /* write: one action per gesture; then read: result */
-#define CFG_CMD_GET_PROFILE 0x43      /* write: slot; then read: used, slot, name[16] */
-#define CFG_CMD_PROFILE_SAVE 0x44     /* write: slot, name; then read: result */
-#define CFG_CMD_PROFILE_LOAD 0x45     /* write: slot; then read: result */
-#define CFG_CMD_PROFILE_DELETE 0x46   /* write: slot; then read: result */
 #define CFG_CMD_GET_PORT_STATUS 0x50  /* read: count, then per port: state, dev_mode, acc_mode, bt type, bt subtype */
 #define CFG_CMD_DCAPI 0x51            /* DC API (dc1): write flags + request text chunks; then read: more flag + answer chunk */
 /* The ids 0x40 to 0x59 belong to the iBlueControlMod additions; docs/ble-commands.md is THE table, change it first.
@@ -55,7 +50,8 @@
  *   0x52-0x59  more port / status commands
  * 0x5A is BlueRetro's own (OTA end). */
 #define IBLUE_FEAT_GESTURES 0x01      /* info features: bit0 tap gestures */
-#define IBLUE_FEAT_PROFILES 0x02      /* bit1 profiles */
+/*            0x02 bit1 was "profiles": removed (not in BlueRetro, not wanted), the bit stays unused */
+#define IBLUE_RESULT_BAD_ARG 2        /* result of a write command: bad request (0 = ok) */
 #define IBLUE_FEAT_GAMEID 0x04        /* bit2 Dreamcast game id from openMenu (Maple command 0x21) */
 #define IBLUE_FEAT_PORTS 0x20         /* bit5 port status (command 0x50) */
 #define IBLUE_FEAT_DCAPI 0x40         /* bit6 DC API text tunnel (command 0x51) */
@@ -449,10 +445,9 @@ static void bt_att_cmd_read_group_rsp(uint16_t handle, uint16_t start, uint16_t 
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 static uint8_t iblue_result;
-static uint8_t iblue_slot;
 
 static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
-    uint8_t features = IBLUE_FEAT_GESTURES | IBLUE_FEAT_PROFILES;
+    uint8_t features = IBLUE_FEAT_GESTURES;
     uint8_t *d = bt_hci_pkt_tmp.att_data;
 
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
@@ -465,7 +460,7 @@ static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
     d[4] = IBLUE_CFG_VERSION;
     d[5] = features;
     d[6] = IBLUE_GEST_MAX;
-    d[7] = IBLUE_PROFILES;
+    d[7] = 0; /* was the number of profile slots (profiles were removed) */
     d[8] = IBLUE_ACT_MAX;
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 9);
 }
@@ -475,17 +470,6 @@ static void bt_att_cfg_cmd_gestures_rsp(uint16_t handle) {
         bt_hci_pkt_tmp.att_data[i] = iblue_gesture_get(i);
     }
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, IBLUE_GEST_MAX);
-}
-
-static void bt_att_cfg_cmd_profile_rsp(uint16_t handle) {
-    uint8_t *d = bt_hci_pkt_tmp.att_data;
-    char name[IBLUE_PROFILE_NAME_MAX + 1];
-
-    d[0] = iblue_profile_info(iblue_slot, name);
-    d[1] = iblue_slot;
-    memset(&d[2], 0, IBLUE_PROFILE_NAME_MAX + 1);
-    memcpy(&d[2], name, IBLUE_PROFILE_NAME_MAX);
-    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 2 + IBLUE_PROFILE_NAME_MAX + 1);
 }
 
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
@@ -539,13 +523,7 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
         case CFG_CMD_GET_GESTURES:
             bt_att_cfg_cmd_gestures_rsp(handle);
             break;
-        case CFG_CMD_GET_PROFILE:
-            bt_att_cfg_cmd_profile_rsp(handle);
-            break;
         case CFG_CMD_SET_GESTURES:
-        case CFG_CMD_PROFILE_SAVE:
-        case CFG_CMD_PROFILE_LOAD:
-        case CFG_CMD_PROFILE_DELETE:
             bt_att_cfg_cmd_iblue_result_rsp(handle);
             break;
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
@@ -581,26 +559,7 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
             break;
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
         case CFG_CMD_SET_GESTURES:
-            iblue_result = (len > IBLUE_GEST_MAX && iblue_gesture_set(&data[1])) ? 0 : IBLUE_PROF_BAD_ARG;
-            break;
-        case CFG_CMD_GET_PROFILE:
-            iblue_slot = len > 1 ? data[1] : 0xFF;
-            break;
-        case CFG_CMD_PROFILE_SAVE:
-        {
-            char name[IBLUE_PROFILE_NAME_MAX + 1] = {0};
-
-            if (len > 2) {
-                memcpy(name, &data[2], (len - 2) > IBLUE_PROFILE_NAME_MAX ? IBLUE_PROFILE_NAME_MAX : (len - 2));
-            }
-            iblue_result = len > 1 ? iblue_profile_save(data[1], name) : IBLUE_PROF_BAD_ARG;
-            break;
-        }
-        case CFG_CMD_PROFILE_LOAD:
-            iblue_result = len > 1 ? iblue_profile_load(data[1]) : IBLUE_PROF_BAD_ARG;
-            break;
-        case CFG_CMD_PROFILE_DELETE:
-            iblue_result = len > 1 ? iblue_profile_delete(data[1]) : IBLUE_PROF_BAD_ARG;
+            iblue_result = (len > IBLUE_GEST_MAX && iblue_gesture_set(&data[1])) ? 0 : IBLUE_RESULT_BAD_ARG;
             break;
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
         case CFG_CMD_DCAPI:

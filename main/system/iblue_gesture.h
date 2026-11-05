@@ -29,11 +29,6 @@ enum {
     IBLUE_ACT_STOP_PAIRING,  /* stop searching */
     IBLUE_ACT_NEXT_COLOUR,   /* orange, blue, custom */
     IBLUE_ACT_DISCONNECT,    /* disconnect all controllers */
-    IBLUE_ACT_PROFILE_1,     /* load profile 1 ... 4 */
-    IBLUE_ACT_PROFILE_2,
-    IBLUE_ACT_PROFILE_3,
-    IBLUE_ACT_PROFILE_4,
-    IBLUE_ACT_NEXT_PROFILE,  /* the next saved profile, round and round */
     IBLUE_ACT_MAX,
 };
 

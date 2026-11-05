@@ -82,33 +82,17 @@ async function open(browser, server, url, opts) {
         await page.click('#btConn');
         await page.waitForSelector('#divGestures', { state: 'visible' });
         const info = await page.textContent('#divInfo');
-        check(/iBlueControlMod features: tap buttons, profiles, game id/.test(info), 'info line shows the features: ' + info);
+        check(/iBlueControlMod features: tap buttons, game id/.test(info), 'info line shows the features: ' + info);
         check(await page.inputValue('#gesture0') === '0' && await page.inputValue('#gesture1') === '3' && await page.inputValue('#gesture2') === '0',
             'defaults: single tap nothing, double tap next colour, triple tap nothing');
-        check((await page.$$('#gesture0 option')).length === 10, 'ten actions to choose from');
-        await page.selectOption('#gesture2', '6');
+        check((await page.$$('#gesture0 option')).length === 5, 'five actions to choose from');
+        await page.selectOption('#gesture2', '4');
         await page.selectOption('#gesture0', '1');
         await page.click('#btnGestureSave');
         await page.waitForFunction(() => document.getElementById('gestureStatus').textContent === 'Saved.');
-        check(JSON.stringify(await page.evaluate(() => window.__br.gestures)) === '[1,3,6]', 'the firmware got the new tap actions');
+        check(JSON.stringify(await page.evaluate(() => window.__br.gestures)) === '[1,3,4]', 'the firmware got the new tap actions');
 
-        await page.waitForSelector('#divProfiles', { state: 'visible' });
-        check((await page.$$('#profileRows > div')).length === 4, 'four profile slots');
-        check(await page.isDisabled('#profileLoad0') && await page.isDisabled('#profileDelete0'), 'an empty slot cannot be loaded or deleted');
-        await page.fill('#profileName1', 'Fighting');
-        await page.click('#profileSave1');
-        await page.waitForFunction(() => !document.getElementById('profileLoad1').disabled);
-        check(await page.evaluate(() => window.__br.profiles[1]) === 'Fighting', 'profile saved with its name');
-        check(await page.inputValue('#profileName1') === 'Fighting', 'the name is shown again after a refresh');
-        await page.click('#profileSave2'); // empty name: the firmware names it
-        await page.waitForFunction(() => !document.getElementById('profileLoad2').disabled);
-        check(await page.inputValue('#profileName2') === 'Profile 3', 'an empty name becomes Profile 3');
-        await page.click('#profileLoad1');
-        await page.waitForFunction(() => document.getElementById('profileStatus').textContent.startsWith('Done: load'));
-        check(await page.evaluate(() => window.__br.loaded) === 1, 'profile 2 was loaded');
-        await page.click('#profileDelete1');
-        await page.waitForFunction(() => document.getElementById('profileLoad1').disabled);
-        check(await page.evaluate(() => window.__br.profiles[1]) === null, 'profile deleted');
+        check(await page.isHidden('#divInfo') === false && !/rofile/.test(await page.content()), 'no profile section on the page');
         check(errors.length === 0, 'no script errors on the iBlue page: ' + errors.join('; '));
         await page.context().close();
     }
@@ -119,7 +103,7 @@ async function open(browser, server, url, opts) {
         await page.click('#btConn');
         await page.waitForSelector('#divInfo', { state: 'visible' });
         await page.waitForFunction(() => /does not have/.test(document.getElementById('divInfo').textContent));
-        check(await page.isHidden('#divGestures') && await page.isHidden('#divProfiles'), 'no iBlue sections for another firmware');
+        check(await page.isHidden('#divGestures'), 'no iBlue sections for another firmware');
         check(errors.length === 0, 'no script errors with another firmware: ' + errors.join('; '));
         await page.context().close();
     }
@@ -170,7 +154,7 @@ async function open(browser, server, url, opts) {
     {   // the list still shows when one source is missing: only main has files here (the others answer 404)
         const { page } = await open(browser, server, 'index.html', iblue);
         const text = await page.textContent('body');
-        check(/iblue\.html/.test(await page.content()) && /tap buttons and profiles/.test(text), 'the index links to the iBlueControlMod page');
+        check(/iblue\.html/.test(await page.content()) && /tap buttons/.test(text), 'the index links to the iBlueControlMod page');
         await page.context().close();
     }
 

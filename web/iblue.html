@@ -9,7 +9,6 @@ index: index.html
 <p>Settings that only the iBlueControlMod firmware has:</p>
 <ul>
 <li><b>Tap buttons</b>: what a single, double and triple tap of the button do.</li>
-<li><b>Profiles</b>: four named copies of the whole BlueRetro configuration, to switch between with one click here or with a tap.</li>
 </ul>
 
 <div id="divBtConn">
@@ -27,15 +26,6 @@ index: index.html
     colours, release when it shows the one you want and it is kept as the custom colour. The holds of 3, 6, 10 and 30
     seconds are as in BlueRetro.</small></p>
     <button id="btnGestureSave">Save tap buttons</button> <span id="gestureStatus"></span>
-</div>
-
-<div id="divProfiles" style="display:none;margin-bottom:1em;">
-    <h2 style="margin:0">Profiles</h2>
-    <p>A profile is a copy of the <b>whole</b> configuration: the mapping, output mode and accessories of every output,
-    and the global settings. <b>Save</b> puts the configuration the adapter runs now into a slot; <b>Load</b> replaces
-    the configuration with the profile and keeps it. Profiles survive a factory reset.</p>
-    <div id="profileRows"></div>
-    <span id="profileStatus"></span>
 </div>
 
 {% include output_helper.html %}

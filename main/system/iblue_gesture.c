@@ -7,7 +7,6 @@
 #include "bluetooth/hci.h"
 #include "system/manager.h"
 #include "system/iblue_led.h"
-#include "system/iblue_profile.h"
 #include "system/iblue_gesture.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
@@ -85,15 +84,6 @@ void iblue_gesture_run(uint32_t gesture) {
             break;
         case IBLUE_ACT_DISCONNECT:
             bt_host_disconnect_all();
-            break;
-        case IBLUE_ACT_PROFILE_1:
-        case IBLUE_ACT_PROFILE_2:
-        case IBLUE_ACT_PROFILE_3:
-        case IBLUE_ACT_PROFILE_4:
-            iblue_profile_load(act - IBLUE_ACT_PROFILE_1);
-            break;
-        case IBLUE_ACT_NEXT_PROFILE:
-            iblue_profile_next();
             break;
         default:
             break;

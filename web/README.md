@@ -3,7 +3,7 @@
 A fork of [BlueRetroWebCfg](https://github.com/darthcloud/BlueRetroWebCfg) (Apache-2.0, see NOTICE.md) that adds what the
 iBlueControlMod firmware has:
 
-- `iblue.html`: map single / double / triple tap to an action, and save / load / delete 4 whole-config profiles
+- `iblue.html`: map single / double / triple tap to an action
   (BLE commands 0x40-0x46, `main/bluetooth/att_cfg.c`). Other firmwares answer with a clear message instead.
 - `ota.html`: besides the file picker, a list of firmwares from this GitHub repo (`firmware-sources.json`).
   The baseline (`firmware/BlueRetro_iBlueControlMod_RGB_v1.bin` on main) is listed first and preselected; each download is

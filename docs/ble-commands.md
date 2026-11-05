@@ -13,7 +13,7 @@ Why this exists: two branches and one other repository each picked `0x4B` (Joy-C
 | 0x37-0x39 | BlueRetro: deep sleep, reset, factory reset | yes | upstream |
 | **0x40** | `GET_IBLUE_INFO` (`iBLU`, version, features, counts) | yes | |
 | **0x41-0x42** | `GET_GESTURES` / `SET_GESTURES` (tap actions) | yes | |
-| **0x43-0x46** | `GET_PROFILE`, `PROFILE_SAVE`, `PROFILE_LOAD`, `PROFILE_DELETE` | yes | |
+| 0x43-0x46 | were `GET_PROFILE` ... `PROFILE_DELETE`: **removed** (profiles are not in BlueRetro and were not wanted); do not reuse the numbers for something else without checking old web pages | no, **retired** | |
 | **0x47-0x4A** | LED / boot animation settings: get, set, play now, defaults | no, **reserved** | branch `claude/integration` |
 | **0x4B-0x4F** | Joy-Con motion (maracas): get settings, set settings, pose, status, forget calibration | no, **reserved** | branch `claude/integration` |
 | **0x50** | `GET_PORT_STATUS` (read only; answer below) | **written** (with `CONFIG_BLUERETRO_IBLUE_DCAPI`), not built with ESP-IDF | DC-DreamDash `claude/iblue-ports` used `0x4B` for it: must use `0x50` |
@@ -29,7 +29,7 @@ Numbers not listed (0x08-0x0F, 0x15-0x36, 0x3A-0x3F, 0x5B-0xA4, 0xA6-0xDD, 0xDF-
 | Bit | Value | Meaning | In this build |
 |---|---|---|---|
 | 0 | 0x01 | tap gestures | yes |
-| 1 | 0x02 | profiles | yes |
+| 1 | 0x02 | was profiles: **retired**, always 0 | no |
 | 2 | 0x04 | Dreamcast game id from openMenu (Maple command `0x21`) | yes (with `BLUERETRO_IBLUE_GAMEID`) |
 | 3 | 0x08 | LED / animation settings (0x47-0x4A) | reserved (`claude/integration`) |
 | 4 | 0x10 | Joy-Con motion (0x4B-0x4F) | reserved (`claude/integration`) |

@@ -7,7 +7,7 @@ The license is in `LICENSE`.
 Changes in this fork:
 
 - `iblue.html`, `iblue.js`, `utils/iblueCmd.js`: a page for the iBlueControlMod firmware: what the single, double and
-  triple tap of the button do, and four configuration profiles (save, load, delete).
+  triple tap of the button do.
 - `ota.html`, `ota.js`, `utils/firmwareList.js`: the OTA page can list the firmware files of the iBlueControlMod GitHub
   repository (the tested baseline first) and flash one without downloading it first. Uploading a file still works.
 - `utils/constants.js`: the command codes of the iBlueControlMod additions.
