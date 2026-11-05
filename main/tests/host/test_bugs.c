@@ -9,24 +9,36 @@
 void adapter_q_fb(struct raw_fb *fb_data) { (void)fb_data; }
 
 /* ---- model of the firmware glue (same as test_engine.c): a 15 slot queue that drops when full or muted */
-struct msg { uint8_t op, a, b; struct iblue_mapent e; };
+struct msg { uint8_t op, a, b; uint8_t n; struct iblue_mapent e[IBLUE_MAP_PER_OUT]; };
+#define IBLUE_CFG_MAP_SET_T 8
+#define SLOTS 8
 static struct msg q[64];
 static int qn, dropped, queue_cap = 15, mute;
 static struct iblue_mapent cfg_map[4][128];
 static size_t cfg_n[4];
-static void push(struct msg m) { if (mute || qn >= queue_cap) { dropped++; return; } q[qn++] = m; }
-void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { struct msg m = {op, a, b, {0}}; push(m); }
-void iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e) { struct msg m = {IBLUE_CFG_MAP_ADD, port, out, *e}; push(m); }
+static int slots_used(void) { int c = 0; for (int i = 0; i < qn; i++) { c += q[i].op == IBLUE_CFG_MAP_SET_T; } return c; }
+static int push(struct msg m) {
+    if (mute || qn >= queue_cap) { dropped++; return 0; }
+    q[qn++] = m;
+    return 1;
+}
+int iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { struct msg m = {op, a, b, 0, {{0}}}; return push(m); }
+/* the real one: a mailbox of 8 slots, and ONE message; the slot is free again when the message is not queued */
+int iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct iblue_mapent *e, size_t n) {
+    struct msg m = {IBLUE_CFG_MAP_SET_T, port, out, (uint8_t)n, {{0}}};
+    if (n > IBLUE_MAP_PER_OUT || slots_used() >= SLOTS) { return 0; }
+    for (size_t i = 0; i < n; i++) { m.e[i] = e[i]; }
+    return push(m);
+}
 const struct iblue_mapent *iblue_dcapi_cfg_map(uint32_t port, size_t *count) { if (port >= 4) { *count = 0; return NULL; } *count = cfg_n[port]; return cfg_map[port]; }
 static void apply_msg(const struct msg *m) {
     uint8_t a = m->a, b = m->b;
-    if (m->op == IBLUE_CFG_MAP_CLEAR && a < 4 && b < IBLUE_OUT_COUNT) {
-        size_t r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, NULL, 0);
+    if (m->op == IBLUE_CFG_MAP_SET_T && a < 4 && b < IBLUE_OUT_COUNT) {
+        struct iblue_mapent es[IBLUE_MAP_PER_OUT];
+        size_t r;
+        for (int k = 0; k < m->n; k++) { es[k] = m->e[k]; }
+        r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, es, m->n);
         if (r != (size_t)-1) { cfg_n[a] = r; }
-    }
-    else if (m->op == IBLUE_CFG_MAP_ADD && a < 4 && b < IBLUE_OUT_COUNT && m->e.src_btn < IBM_PAD_IDS && cfg_n[a] < 128) {
-        struct iblue_mapent e = {m->e.src_btn, iblue_out_dst(b), a, m->e.perc_max, m->e.perc_threshold, m->e.perc_deadzone, m->e.turbo, m->e.algo};
-        cfg_map[a][cfg_n[a]++] = e;
     }
 }
 static void drain(void) { for (int i = 0; i < qn; i++) { apply_msg(&q[i]); } qn = 0; }
@@ -150,7 +162,7 @@ static void bug6(void) {
     memset(wire, 0, sizeof(wire));
     for (size_t w = 0; w < pad; w += 4) { for (size_t j = 0; j < 4; j++) { wire[w + j] = (w + 3 - j) < n ? (uint8_t)text[w + 3 - j] : 0; } }
     iblue_dcapi_maple(wire, pad, back);
-    EXPECT(qn == 0 || (q[1].e.turbo == 255), "a request of %zu bytes was cut at 252 and applied with turbo=%u", n, qn > 1 ? q[1].e.turbo : 0);
+    EXPECT(qn == 0, "a request of %zu bytes was cut at 252 and applied: %d messages queued", n, qn);
 }
 
 /* 7: the prefix match of get port.A.map.<prefix>* folds case with |0x20, so DEL matches '_' and control characters match digits (ran) */

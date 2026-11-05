@@ -72,6 +72,9 @@ int iblue_map_parse(const char *val, size_t len, uint32_t out, uint8_t port, str
 
 /* The value text of one output from the entries of a port. Returns the length written (NUL terminated, cut at an entry if cap is too small). */
 size_t iblue_map_render(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, char *buf, size_t cap);
+/* The same, and *cut = 1 when the value did not fit (what is in buf is then only the first entries, or empty): a caller that must not
+ * show a wrong mapping drops the line. */
+size_t iblue_map_render_ex(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, char *buf, size_t cap, int *cut);
 
 /* Replace what drives the output by ents. Returns the new size, or (size_t)-1 when the table would overflow (nothing changed). */
 size_t iblue_map_replace(struct iblue_mapent *map, size_t n, size_t max, uint8_t port, uint32_t out, const struct iblue_mapent *ents, size_t nents);
@@ -81,6 +84,6 @@ size_t iblue_map_replace(struct iblue_mapent *map, size_t n, size_t max, uint8_t
 const char *iblue_layout_name(uint32_t i);            /* "standard", "all" */
 int iblue_layout_find(const char *s, size_t n);       /* index, or -1 */
 size_t iblue_layout_apply(uint32_t layout, struct iblue_mapent *map, size_t n, size_t max, uint8_t port); /* new size or (size_t)-1 */
-int iblue_layout_match(const struct iblue_mapent *map, size_t n, uint8_t port); /* index of the preset the port equals, or -1 (custom) */
+int iblue_layout_match(const struct iblue_mapent *map, size_t n, uint8_t port); /* index of the preset the port equals (entry by entry), or -1 (custom) */
 
 #endif /* _IBLUE_MAPCFG_H_ */

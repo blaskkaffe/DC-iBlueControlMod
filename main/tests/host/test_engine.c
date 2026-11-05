@@ -11,7 +11,9 @@ void adapter_q_fb(struct raw_fb *fb_data) { (void)fb_data; }
 
 /* ---- the model of the glue */
 #define QCAP 15                                   /* queue_bss_init(16, ...) puts item_num - 1 free items in: 15 usable (read) */
-struct msg { uint8_t op, a, b; struct iblue_mapent e; };
+struct msg { uint8_t op, a, b; uint8_t n; struct iblue_mapent e[IBLUE_MAP_PER_OUT]; };
+#define IBLUE_CFG_MAP_SET_T 8
+#define SLOTS 8
 static struct msg q[64];
 static int qn, dropped;
 static int queue_cap = QCAP;
@@ -19,14 +21,19 @@ static int mute = 0;                              /* adapter_q_fb() throws every
 static struct iblue_mapent cfg_map[4][128];
 static size_t cfg_n[4];
 
-static void push(struct msg m) {
-    if (mute || qn >= queue_cap) { dropped++; return; }
+static int slots_used(void) { int c = 0; for (int i = 0; i < qn; i++) { c += q[i].op == IBLUE_CFG_MAP_SET_T; } return c; }
+static int push(struct msg m) {
+    if (mute || qn >= queue_cap) { dropped++; return 0; }
     q[qn++] = m;
+    return 1;
 }
-void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { struct msg m = {op, a, b, {0}}; push(m); }
-void iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e) {
-    struct msg m = {IBLUE_CFG_MAP_ADD, port, out, *e};
-    push(m);
+int iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { struct msg m = {op, a, b, 0, {{0}}}; return push(m); }
+/* the real one: a mailbox of 8 slots, and ONE message; the slot is free again when the message is not queued */
+int iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct iblue_mapent *e, size_t n) {
+    struct msg m = {IBLUE_CFG_MAP_SET_T, port, out, (uint8_t)n, {{0}}};
+    if (n > IBLUE_MAP_PER_OUT || slots_used() >= SLOTS) { return 0; }
+    for (size_t i = 0; i < n; i++) { m.e[i] = e[i]; }
+    return push(m);
 }
 const struct iblue_mapent *iblue_dcapi_cfg_map(uint32_t port, size_t *count) {
     if (port >= 4) { *count = 0; return NULL; }
@@ -37,16 +44,13 @@ static int layout_refused;
 static void apply_msg(const struct msg *m) {
     uint8_t a = m->a, b = m->b;
     switch (m->op) {
-        case IBLUE_CFG_MAP_CLEAR:
+        case IBLUE_CFG_MAP_SET_T:
             if (a < 4 && b < IBLUE_OUT_COUNT) {
-                size_t r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, NULL, 0);
+                struct iblue_mapent es[IBLUE_MAP_PER_OUT];
+                size_t r;
+                for (int k = 0; k < m->n; k++) { es[k] = m->e[k]; }
+                r = iblue_map_replace(cfg_map[a], cfg_n[a], 128, a, b, es, m->n);
                 if (r != (size_t)-1) { cfg_n[a] = r; }
-            }
-            break;
-        case IBLUE_CFG_MAP_ADD:
-            if (a < 4 && b < IBLUE_OUT_COUNT && m->e.src_btn < IBM_PAD_IDS && cfg_n[a] < 128) {
-                struct iblue_mapent e = {m->e.src_btn, iblue_out_dst(b), a, m->e.perc_max, m->e.perc_threshold, m->e.perc_deadzone, m->e.turbo, m->e.algo};
-                cfg_map[a][cfg_n[a]++] = e;
             }
             break;
         case IBLUE_CFG_SET_LAYOUT:
@@ -142,7 +146,7 @@ int main(void) {
          "ok port.A.map.DPAD2_UP dpad2.up\nok port.A.map.DPAD2_DOWN dpad2.down\nok port.A.map.DPAD2_LEFT dpad2.left\nok port.A.map.DPAD2_RIGHT dpad2.right\n");
     qn = 0;
     SAME(ask("dc1\nset port.A.map.z LB , Rb:THRESHOLD=5\n"), "dc1\nok port.A.map.Z lb, rb:threshold=5\n");
-    CHECK(qn == 3);
+    CHECK(qn == 1);
     qn = 0;
 
     /* ---- whitespace */
@@ -158,7 +162,7 @@ int main(void) {
         SAME(ans, "dc1\nok hello.api 1\n");
     }
     SAME(ask("dc1\nset port.A.map.Z   lb   ,   rb  \n"), "dc1\nok port.A.map.Z lb, rb\n");
-    CHECK(qn == 3);
+    CHECK(qn == 1);
     qn = 0;
 
     /* ---- two ports, and ports that are not there */
@@ -172,7 +176,7 @@ int main(void) {
         qn = 0;
         SAME(ask("dc1\nset port.B.map.A x\nset port.C.map.A x\nset port.D.map.A x\nset port.C.layout all\nset port.E.map.A x\n"),
              "dc1\nok port.B.map.A x\nerr port.C.map.A unavailable no such port\nerr port.D.map.A unavailable no such port\nerr port.C.layout unavailable no such port\nerr port.E.map.A unknown\n");
-        CHECK(qn == 2 && q[0].op == IBLUE_CFG_MAP_CLEAR && q[0].a == 1 && q[1].op == IBLUE_CFG_MAP_ADD && q[1].a == 1);   /* only B's set queued something */
+        CHECK(qn == 1 && q[0].op == IBLUE_CFG_MAP_SET_T && q[0].a == 1 && q[0].n == 1);   /* only B's set queued something */
         drain();
         SAME(ask("dc1\nget port.B.map.A\nget port.A.map.A\n"), "dc1\nok port.B.map.A x\nok port.A.map.A a\n");     /* two ports are independent */
         factory(1);
@@ -193,11 +197,10 @@ int main(void) {
                 qn = 0;
                 snprintf(req, sizeof(req), "dc1\nset port.%c.map.START %s\n", (char)('A' + port), texts[t]);
                 CHECK(strstr(ask(req), "ok port.") == ans + 4);
-                CHECK(qn == 1 + want);
-                CHECK(q[0].op == IBLUE_CFG_MAP_CLEAR && q[0].a == port && q[0].b == iblue_out_find("START", 5));
-                for (int i = 1; i <= want; i++) { CHECK(q[i].op == IBLUE_CFG_MAP_ADD && q[i].a == port && q[i].b == q[0].b); }
-                if (t == 3) { CHECK(q[1].e.src_btn == IBM_LM && q[1].e.perc_threshold == 78 && q[2].e.src_btn == IBM_RM && q[3].e.src_btn == IBM_RB_DOWN); }
-                if (t == 4) { CHECK(q[1].e.src_btn == IBM_MS && q[2].e.src_btn == IBM_MM && q[3].e.src_btn == 22 && q[4].e.src_btn == 23); }
+                CHECK(qn == 1);
+                CHECK(q[0].op == IBLUE_CFG_MAP_SET_T && q[0].a == port && q[0].b == iblue_out_find("START", 5) && q[0].n == want);
+                if (t == 3) { CHECK(q[0].e[0].src_btn == IBM_LM && q[0].e[0].perc_threshold == 78 && q[0].e[1].src_btn == IBM_RM && q[0].e[2].src_btn == IBM_RB_DOWN); }
+                if (t == 4) { CHECK(q[0].e[0].src_btn == IBM_MS && q[0].e[1].src_btn == IBM_MM && q[0].e[2].src_btn == 22 && q[0].e[3].src_btn == 23); }
             }
             for (uint32_t t = 0; t < 8; t++) {
                 char req[200];
@@ -218,7 +221,7 @@ int main(void) {
         factory(0);
         SAME(ask("dc1\nset port.A.map.C lt:threshold=78, rb\nset port.A.map.D none\nset port.A.map.Z lb\nget port.A.map.C\n"),
              "dc1\nok port.A.map.C lt:threshold=78, rb\nok port.A.map.D none\nok port.A.map.Z lb\nok port.A.map.C rb\n");   /* the get in the same request still shows the old line */
-        CHECK(qn == (1 + 2) + 1 + (1 + 1));                                                   /* C: clear + 2, D: clear, Z: clear + 1 */
+        CHECK(qn == 3);   /* one message per output: C, D, Z */
         drain();
         SAME(ask("dc1\nget port.A.map.C\nget port.A.map.D\nget port.A.map.Z\n"), "dc1\nok port.A.map.C lt:threshold=78, rb\nok port.A.map.D none\nok port.A.map.Z lb\n");
         CHECK(cfg_n[0] == 98);                                                                /* C: -1 +2, D: -1, Z: -1 +1 */

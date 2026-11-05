@@ -13,7 +13,8 @@ void adapter_q_fb(struct raw_fb *fb_data) { (void)fb_data; }
 /* what the engine asks the firmware to do (normally a queued message, applied in host.c) */
 static struct { uint8_t op, a, b; } reqs[32];
 static int nreq;
-void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { if (nreq < 32) { reqs[nreq].op = op; reqs[nreq].a = a; reqs[nreq].b = b; nreq++; } }
+#define IBLUE_CFG_MAP_CLEAR_T 5   /* this test sees a map set as "clear + one add per entry" */
+int iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { if (nreq < 32) { reqs[nreq].op = op; reqs[nreq].a = a; reqs[nreq].b = b; nreq++; } return 1; }
 
 /* the live mapping the engine reads, and the entries it asked to add */
 static struct iblue_mapent live[8][130];
@@ -21,7 +22,11 @@ static size_t live_n[8];
 static struct { uint8_t port, out; struct iblue_mapent e; } adds[32];
 static int nadd;
 const struct iblue_mapent *iblue_dcapi_cfg_map(uint32_t port, size_t *count) { *count = live_n[port]; return live[port]; }
-void iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e) { if (nadd < 32) { adds[nadd].port = port; adds[nadd].out = out; adds[nadd].e = *e; nadd++; } }
+int iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct iblue_mapent *e, size_t n) {
+    iblue_dcapi_cfg_request(IBLUE_CFG_MAP_CLEAR_T, port, out);
+    for (size_t i = 0; i < n; i++) { if (nadd < 32) { adds[nadd].port = port; adds[nadd].out = out; adds[nadd].e = e[i]; nadd++; } }
+    return 1;
+}
 
 static char ans[IBLUE_DCAPI_ANS_MAX + 1];
 static const char *ask(const char *req) {
@@ -269,13 +274,13 @@ int main(void) {
     nreq = 0; nadd = 0;
     SAME(ask("dc1\nset port.A.map.C rb , LT:threshold=78:deadzone=2\nget sys.unsaved\n"),
          "dc1\nok port.A.map.C rb, lt:deadzone=2:threshold=78\nok sys.unsaved yes\n");
-    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_MAP_CLEAR && reqs[0].a == 0 && reqs[0].b == (uint8_t)iblue_out_find("C", 1));
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_MAP_CLEAR_T && reqs[0].a == 0 && reqs[0].b == (uint8_t)iblue_out_find("C", 1));
     CHECK(nadd == 2);
     CHECK(adds[0].port == 0 && adds[0].out == reqs[0].b && adds[0].e.src_btn == IBM_RS && adds[0].e.dst_btn == IBM_RS && adds[0].e.dst_id == 0);
     CHECK(adds[1].e.src_btn == IBM_LM && adds[1].e.dst_btn == IBM_RS && adds[1].e.perc_threshold == 78 && adds[1].e.perc_deadzone == 203);
     nreq = 0; nadd = 0;
     SAME(ask("dc1\nset port.A.map.D none\n"), "dc1\nok port.A.map.D none\n");
-    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_MAP_CLEAR && nadd == 0);
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_MAP_CLEAR_T && nadd == 0);
     nreq = 0; nadd = 0;
     SAME(ask("dc1\nset port.A.map.D zz\nset port.A.map.D a:deadzone=9\nset port.A.map.Q a\nset port.D.map.A a\n"),
          "dc1\nerr port.A.map.D range unknown input name\nerr port.A.map.D range deadzone off, 1 to 5 or n%\nerr port.A.map.Q unknown\nerr port.D.map.A unavailable no such port\n");

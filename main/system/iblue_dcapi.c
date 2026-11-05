@@ -51,6 +51,9 @@ DSTR(S_SELF, "self");
 DSTR(S_IBLUE, "iblue");
 DSTR(S_UNKNOWN_VERSION, "unknown");
 DSTR(S_PORT, "port.");
+DSTR(S_EMPTY, " empty give a value or none");
+DSTR(S_BUSY, " busy try again");
+DSTR(S_TOOLONG, "err request too long\n");
 DSTR(S_NOPORT, " unavailable no such port");
 /* port fields: state mode acc name */
 enum { F_STATE, F_MODE, F_ACC, F_NAME, F_MODES, F_ACCS, F_LAYOUT, F_LAYOUTS, F_COUNT };
@@ -92,6 +95,7 @@ static DRAM_ATTR char maple_ans[IBLUE_DCAPI_ANS_MAX + 1];
 static DRAM_ATTR char ble_req[IBLUE_DCAPI_REQ_MAX + 1];
 static DRAM_ATTR char ble_ans[IBLUE_DCAPI_ANS_MAX + 1];
 static DRAM_ATTR size_t ble_req_len, ble_ans_len, ble_pos;
+static DRAM_ATTR uint8_t ble_over; /* the request did not fit: it is refused, not cut and applied */
 
 /* ---- output */
 struct out {
@@ -120,11 +124,16 @@ static void IRAM_ATTR o_str(struct out *o, const char *s) {
     o_mem(o, s, n);
 }
 
-static void IRAM_ATTR o_end_line(struct out *o) {
-    o_str(o, S_NL);
+/* what is out so far is whole lines (unless the buffer ran out: then the answer is cut at the last line that was whole) */
+static void IRAM_ATTR o_whole(struct out *o) {
     if (!o->cut) {
         o->last_nl = o->p;
     }
+}
+
+static void IRAM_ATTR o_end_line(struct out *o) {
+    o_str(o, S_NL);
+    o_whole(o);
 }
 
 static int IRAM_ATTR eq(const char *s, size_t n, const char *lit) {
@@ -304,11 +313,24 @@ static void IRAM_ATTR map_get_line(struct out *o, uint32_t port, uint32_t out) {
     const struct iblue_mapent *map = iblue_dcapi_cfg_map(port, &n);
     size_t room = (size_t)(o->end - o->p) + 1;
 
+    int cut = 0;
+
     map_key_out(o, port, out);
     if (!o->cut && room > 1) {
-        o->p += iblue_map_render(map, n, (uint8_t)port, out, o->p, (size_t)(o->end - o->p) + 1);
+        o->p += iblue_map_render_ex(map, n, (uint8_t)port, out, o->p, (size_t)(o->end - o->p) + 1, &cut);
+    }
+    else {
+        cut = 1;
+    }
+    if (cut) {
+        o->cut = 1; /* a value that does not fit is not shown shortened: the line is left out */
+        return;
     }
     o_end_line(o);
+}
+
+static char IRAM_ATTR lower(char c) {
+    return (c >= 'A' && c <= 'Z') ? (char)(c + 32) : c; /* letters only: |0x20 made DEL match _ */
 }
 
 static void IRAM_ATTR map_get(struct out *o, const char *key, size_t klen, uint32_t port, const char *name, size_t nlen) {
@@ -323,7 +345,7 @@ static void IRAM_ATTR map_get(struct out *o, const char *key, size_t klen, uint3
             const char *nm = iblue_out_name(i);
             size_t k = 0;
 
-            while (k < nlen - 1 && nm[k] && (nm[k] | 0x20) == (name[k] | 0x20)) {
+            while (k < nlen - 1 && nm[k] && lower(nm[k]) == lower(name[k])) {
                 k++;
             }
             if (k == nlen - 1) {
@@ -362,19 +384,33 @@ static void IRAM_ATTR map_set(struct out *o, const char *key, size_t klen, uint3
         line_err(o, key, klen, S_UNKNOWN);
         return;
     }
+    int cut = 0;
+
+    if (!vlen) {
+        line_err(o, key, klen, S_EMPTY); /* "set port.A.map.Z" alone used to clear the output; "none" does that */
+        return;
+    }
     c = iblue_map_parse(val, vlen, (uint32_t)out, (uint8_t)port, ents, &why);
     if (c < 0) {
         line_err(o, key, klen, why);
         return;
     }
-    iblue_dcapi_cfg_request(IBLUE_CFG_MAP_CLEAR, (uint8_t)port, (uint8_t)out);
-    for (int i = 0; i < c; i++) {
-        iblue_dcapi_cfg_request_map((uint8_t)port, (uint8_t)out, &ents[i]);
+    if (!iblue_dcapi_cfg_set_map((uint8_t)port, (uint8_t)out, ents, (size_t)c)) {
+        line_err(o, key, klen, S_BUSY); /* nothing was changed */
+        return;
     }
     unsaved = 1;
+    port_layout[port] = 0xFF; /* until the manager task looks again, it is not a preset any more */
     map_key_out(o, port, (uint32_t)out);
     if (!o->cut) {
-        o->p += iblue_map_render(ents, (size_t)c, (uint8_t)port, (uint32_t)out, o->p, (size_t)(o->end - o->p) + 1);
+        o->p += iblue_map_render_ex(ents, (size_t)c, (uint8_t)port, (uint32_t)out, o->p, (size_t)(o->end - o->p) + 1, &cut);
+    }
+    else {
+        cut = 1;
+    }
+    if (cut) {
+        o->cut = 1;
+        return;
     }
     o_end_line(o);
 }
@@ -391,7 +427,7 @@ static void IRAM_ATTR op_get(struct out *o, const char *key, size_t klen) {
     }
     if (eq(key, klen, S_EVENTS) || (klen > 6 && has_prefix(S_EVENTS, key, 6) && key[6] == ' ')) {
         o_str(o, S_NOEVENTS);
-        o->last_nl = o->p;
+        o_whole(o);
         return;
     }
     {
@@ -488,7 +524,10 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
             }
             else {
                 /* a mapping only: no wired restart. Applied in normal code; not stored until call sys.commit */
-                iblue_dcapi_cfg_request(IBLUE_CFG_SET_LAYOUT, (uint8_t)p, (uint8_t)l);
+                if (!iblue_dcapi_cfg_request(IBLUE_CFG_SET_LAYOUT, (uint8_t)p, (uint8_t)l)) {
+                    line_err(o, key, klen, S_BUSY);
+                    return;
+                }
                 port_layout[p] = (uint8_t)l;
                 unsaved = 1;
                 line_ok(o, (uint8_t)id);
@@ -512,7 +551,10 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
             else {
                 if ((f == F_MODE ? port_mode[p] : port_acc[p]) != v) {
                     /* applied at once in normal code (the console re-enumerates), not stored */
-                    iblue_dcapi_cfg_request(f == F_MODE ? IBLUE_CFG_SET_MODE : IBLUE_CFG_SET_ACC, (uint8_t)p, (uint8_t)v);
+                    if (!iblue_dcapi_cfg_request(f == F_MODE ? IBLUE_CFG_SET_MODE : IBLUE_CFG_SET_ACC, (uint8_t)p, (uint8_t)v)) {
+                        line_err(o, key, klen, S_BUSY);
+                        return;
+                    }
                     if (f == F_MODE) {
                         port_mode[p] = (uint8_t)v;
                     }
@@ -538,7 +580,7 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
     }
     else {
         o_str(o, S_RANGE);
-        o->last_nl = o->p;
+        o_whole(o);
     }
 }
 
@@ -590,7 +632,7 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
                 o_str(&o, S_LEVEL);
                 o_str(&o, S_NL);
                 o_str(&o, S_BADFIRST);
-                o.last_nl = o.p;
+                o_whole(&o);
                 goto done;
             }
             continue;
@@ -621,7 +663,7 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
         o_str(&o, S_LEVEL);
         o_str(&o, S_NL);
         o_str(&o, S_BADFIRST);
-        o.last_nl = o.p;
+        o_whole(&o);
         goto done;
     }
     o_str(&o, S_LEVEL);
@@ -634,7 +676,7 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
     }
     if (!addressed) {
         o_str(&o, S_NOTME);
-        o.last_nl = o.p;
+        o_whole(&o);
         goto done;
     }
     for (uint32_t i = 0; i < nops; i++) {
@@ -675,9 +717,13 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
                 o_mem(&o, line + b, e - b);
                 o_str(&o, S_SP);
                 if (unsaved) {
-                    iblue_dcapi_cfg_request(commit ? IBLUE_CFG_COMMIT : IBLUE_CFG_REVERT, 0, 0);
-                    unsaved = 0;
-                    o_str(&o, S_DONE);
+                    if (iblue_dcapi_cfg_request(commit ? IBLUE_CFG_COMMIT : IBLUE_CFG_REVERT, 0, 0)) {
+                        unsaved = 0;
+                        o_str(&o, S_DONE);
+                    }
+                    else {
+                        o_str(&o, S_BUSY + 1); /* dropped: still unsaved, try again */
+                    }
                 }
                 else {
                     o_str(&o, S_NOTHING);
@@ -752,23 +798,37 @@ size_t iblue_dcapi_port_status(uint8_t *out) {
     return n;
 }
 
+/* a request longer than IBLUE_DCAPI_REQ_MAX is refused whole: a cut line could be applied with a changed meaning ("turbo=25" for "turbo=255") */
+static size_t IRAM_ATTR too_long(char *out, size_t cap) {
+    size_t n = 0;
+
+    while (S_TOOLONG[n] && n + 1 < cap) {
+        out[n] = S_TOOLONG[n];
+        n++;
+    }
+    out[n] = 0;
+    return n;
+}
+
 /* ---- Maple: text on the bus travels with every 4 bytes reversed */
 size_t IRAM_ATTR iblue_dcapi_maple(const uint8_t *wire, size_t n, uint8_t *out_wire) {
     size_t len;
     size_t words;
 
     if (n > IBLUE_DCAPI_REQ_MAX) {
-        n = IBLUE_DCAPI_REQ_MAX;
+        len = too_long(maple_ans, sizeof(maple_ans));
     }
-    for (size_t w = 0; w < n; w += 4) {
-        for (size_t j = 0; j < 4; j++) {
-            size_t i = w + 3 - j;
+    else {
+        for (size_t w = 0; w < n; w += 4) {
+            for (size_t j = 0; j < 4; j++) {
+                size_t i = w + 3 - j;
 
-            maple_req[w + j] = i < n ? (char)wire[i] : 0;
+                maple_req[w + j] = i < n ? (char)wire[i] : 0;
+            }
         }
+        /* n may not be a multiple of 4 on a damaged frame: the reversal above reads inside the buffer only */
+        len = iblue_dcapi_handle(maple_req, n, maple_ans, sizeof(maple_ans));
     }
-    /* n may not be a multiple of 4 on a damaged frame: the reversal above reads inside the buffer only */
-    len = iblue_dcapi_handle(maple_req, n, maple_ans, sizeof(maple_ans));
     words = (len + 3) / 4;
     for (size_t w = 0; w < words * 4; w += 4) {
         for (size_t j = 0; j < 4; j++) {
@@ -808,14 +868,20 @@ void iblue_dcapi_ble_write(const uint8_t *data, size_t len) {
     }
     if (data[0] & 0x01) {
         ble_req_len = 0;
+        ble_over = 0;
         ble_ans_len = 0;
         ble_pos = 0;
     }
-    for (n = 1; n < len && ble_req_len < IBLUE_DCAPI_REQ_MAX; n++) {
-        ble_req[ble_req_len++] = (char)data[n];
+    for (n = 1; n < len; n++) {
+        if (ble_req_len < IBLUE_DCAPI_REQ_MAX) {
+            ble_req[ble_req_len++] = (char)data[n];
+        }
+        else {
+            ble_over = 1;
+        }
     }
     if (data[0] & 0x02) {
-        ble_ans_len = iblue_dcapi_handle(ble_req, ble_req_len, ble_ans, sizeof(ble_ans));
+        ble_ans_len = ble_over ? too_long(ble_ans, sizeof(ble_ans)) : iblue_dcapi_handle(ble_req, ble_req_len, ble_ans, sizeof(ble_ans));
         ble_pos = 0;
     }
 }

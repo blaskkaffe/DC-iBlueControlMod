@@ -33,26 +33,49 @@ const struct iblue_mapent * IRAM_ATTR iblue_dcapi_cfg_map(uint32_t port, size_t 
     return (const struct iblue_mapent *)config.in_cfg[port].map_cfg;
 }
 
-/* One entry of a mapping change: the message carries port, output index and the entry (9 bytes of the 13) */
-void IRAM_ATTR iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e) {
-    struct raw_fb fb = {0};
+/* A mapping change is too big for one queue message (13 bytes), so the entries wait in a mailbox slot and ONE message (with the slot
+ * number) tells the Bluetooth task to apply them. A request holds up to 8 operations, so there are 8 slots. A slot is taken with an atomic
+ * exchange because the Maple interrupt and the Bluetooth task both ask; whoever finds all taken gets "busy". If the message cannot be
+ * queued the slot is freed again. */
+#define MAILBOX_SLOTS 8
+static struct {
+    uint32_t taken;
+    uint8_t n;
+    struct iblue_mapent ents[IBLUE_MAP_PER_OUT];
+} mailbox[MAILBOX_SLOTS];
 
+int IRAM_ATTR iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct iblue_mapent *ents, size_t n) {
+    struct raw_fb fb = {0};
+    uint32_t s = 0;
+
+    if (n > IBLUE_MAP_PER_OUT) {
+        return 0;
+    }
+    while (s < MAILBOX_SLOTS && __atomic_exchange_n(&mailbox[s].taken, 1, __ATOMIC_ACQ_REL)) {
+        s++;
+    }
+    if (s == MAILBOX_SLOTS) {
+        return 0;
+    }
+    mailbox[s].n = (uint8_t)n;
+    for (size_t i = 0; i < n; i++) {
+        mailbox[s].ents[i] = ents[i];
+    }
     fb.header.type = FB_TYPE_API_CFG;
-    fb.header.data_len = 9;
-    fb.data[0] = IBLUE_CFG_MAP_ADD;
+    fb.header.data_len = 4;
+    fb.data[0] = IBLUE_CFG_MAP_SET;
     fb.data[1] = port;
     fb.data[2] = out;
-    fb.data[3] = e->src_btn;
-    fb.data[4] = e->perc_max;
-    fb.data[5] = e->perc_threshold;
-    fb.data[6] = e->perc_deadzone;
-    fb.data[7] = e->turbo;
-    fb.data[8] = e->algo;
-    adapter_q_fb(&fb);
+    fb.data[3] = (uint8_t)s;
+    if (!adapter_q_fb_status(&fb)) {
+        __atomic_store_n(&mailbox[s].taken, 0, __ATOMIC_RELEASE);
+        return 0;
+    }
+    return 1;
 }
 
 /* Asks; callable from the Maple interrupt (so it is in IRAM, like iblue_gameid_set()) and from the Bluetooth task: a queued message */
-void IRAM_ATTR iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) {
+int IRAM_ATTR iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) {
     struct raw_fb fb = {0};
 
     fb.header.type = FB_TYPE_API_CFG;
@@ -60,7 +83,7 @@ void IRAM_ATTR iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) {
     fb.data[0] = op;
     fb.data[1] = a;
     fb.data[2] = b;
-    adapter_q_fb(&fb);
+    return adapter_q_fb_status(&fb);
 }
 
 /* Does it; called by the Bluetooth task (host.c) when the message comes out of the queue. The live configuration is `config`: the
@@ -85,24 +108,24 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
                 reset = true;
             }
             break;
-        case IBLUE_CFG_MAP_CLEAR:
+        case IBLUE_CFG_MAP_SET:
+        {
+            uint8_t s = fb->data[3];
+
+            if (s >= MAILBOX_SLOTS) {
+                return;
+            }
             if (a < WIRED_MAX_DEV && b < IBLUE_OUT_COUNT) {
                 size_t r = iblue_map_replace((struct iblue_mapent *)config.in_cfg[a].map_cfg, config.in_cfg[a].map_size,
-                                             ADAPTER_MAPPING_MAX, a, b, NULL, 0);
+                                             ADAPTER_MAPPING_MAX, a, b, mailbox[s].ents, mailbox[s].n);
 
                 if (r != (size_t)-1) {
                     config.in_cfg[a].map_size = (uint8_t)r;
                 }
             }
+            __atomic_store_n(&mailbox[s].taken, 0, __ATOMIC_RELEASE);
             break;
-        case IBLUE_CFG_MAP_ADD:
-            if (a < WIRED_MAX_DEV && b < IBLUE_OUT_COUNT && fb->data[3] < IBM_PAD_IDS && config.in_cfg[a].map_size < ADAPTER_MAPPING_MAX) {
-                struct iblue_mapent e = {fb->data[3], iblue_out_dst(b), a, fb->data[4], fb->data[5], fb->data[6], fb->data[7], fb->data[8]};
-                struct iblue_mapent *m = (struct iblue_mapent *)config.in_cfg[a].map_cfg;
-
-                m[config.in_cfg[a].map_size++] = e;
-            }
-            break;
+        }
         case IBLUE_CFG_SET_LAYOUT:
             if (a < WIRED_MAX_DEV && b < IBLUE_LAYOUT_COUNT) {
                 size_t r = iblue_layout_apply(b, (struct iblue_mapent *)config.in_cfg[a].map_cfg, config.in_cfg[a].map_size,

@@ -69,11 +69,13 @@
 #define IBLUE_CFG_SET_ACC 2    /* a = port, b = accessory mode (ACC_*) */
 #define IBLUE_CFG_COMMIT 3     /* store the live configuration (config_update) */
 #define IBLUE_CFG_REVERT 4     /* load the stored configuration again */
-#define IBLUE_CFG_MAP_CLEAR 5  /* a = port, b = output index (iblue_out_name()): nothing drives the output any more */
-#define IBLUE_CFG_MAP_ADD 6    /* data: op, port, output index, then the entry (src, scale, threshold, deadzone, turbo, algo); 9 bytes */
 #define IBLUE_CFG_SET_LAYOUT 7 /* a = port, b = layout index (iblue_layout_name()) */
-void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b);
-void iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e);
+#define IBLUE_CFG_MAP_SET 8    /* a = port, b = output index, data[3] = mailbox slot: replaces what drives the output with the slot's entries, in one step */
+/* Both return 1 when the message is queued, 0 when it was dropped (queue full or muted; for the map also: the mailbox is still busy).
+ * The engine then answers err busy and changes nothing it has told the caller about. */
+int iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b);
+/* Replaces the entries of one output with n (0..IBLUE_MAP_PER_OUT) entries: ONE message, all or nothing. */
+int iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct iblue_mapent *ents, size_t n);
 /* The live mapping of a port (struct map_cfg entries; the engine reads it, also in the Maple interrupt, and never writes it) */
 const struct iblue_mapent *iblue_dcapi_cfg_map(uint32_t port, size_t *count);
 struct raw_fb;

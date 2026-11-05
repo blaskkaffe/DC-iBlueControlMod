@@ -8,8 +8,8 @@
 
 void adapter_q_fb(struct raw_fb *fb_data) { (void)fb_data; }
 static long nreq, nadd;
-void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { (void)op; (void)a; (void)b; nreq++; }
-void iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e) { (void)port; (void)out; (void)e; nadd++; }
+int iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { (void)op; (void)a; (void)b; nreq++; return 1; }
+int iblue_dcapi_cfg_set_map(uint8_t port, uint8_t out, const struct iblue_mapent *e, size_t n) { (void)port; (void)out; (void)e; nadd += (long)n; return 1; }
 #define LIVE_MAX 128
 static struct iblue_mapent live[IBLUE_DCAPI_PORTS][LIVE_MAX];
 static size_t live_n[IBLUE_DCAPI_PORTS];
@@ -238,7 +238,7 @@ int main(void) {
     fuzz_handle(n);
     fuzz_maple(n);
     fuzz_ble(n / 4);
-    printf("fuzz: parse ok=%ld none=%ld refused=%ld; %ld requests answered, %ld ended in the middle of a line (known bug, test_bugs.c); %ld cfg requests, %ld map adds\n",
+    printf("fuzz: parse ok=%ld none=%ld refused=%ld; %ld requests answered, %ld ended in the middle of a line (must be 0); %ld cfg requests, %ld map adds\n",
            parse_stats[0], parse_stats[1], parse_stats[2], handle_stats[0], handle_stats[1], nreq, nadd);
     printf("fuzz: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;

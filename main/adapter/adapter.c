@@ -485,11 +485,17 @@ bool adapter_bridge_fb(struct raw_fb *fb_data, struct bt_data *bt_data) {
     return ret;
 }
 
+/* 1 = queued, 0 = dropped (muted or the queue is full) */
+int IRAM_ATTR adapter_q_fb_status(struct raw_fb *fb_data) {
+    if (!rumble_mute) {
+        return queue_bss_enqueue(wired_adapter.input_q_hdl, (uint8_t *)fb_data, sizeof(*fb_data)) >= 0;
+    }
+    return 0;
+}
+
 void IRAM_ATTR adapter_q_fb(struct raw_fb *fb_data) {
     /* Best efford only on fb */
-    if (!rumble_mute) {
-        queue_bss_enqueue(wired_adapter.input_q_hdl, (uint8_t *)fb_data, sizeof(*fb_data));
-    }
+    (void)adapter_q_fb_status(fb_data);
 }
 
 void adapter_toggle_fb(uint32_t wired_id, uint32_t duration_us, uint8_t lf_pwr, uint8_t hf_pwr) {

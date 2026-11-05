@@ -1,3 +1,5 @@
+**Status 2026-11-05: all 12 fixed on `unified`; `STRICT=1 sh main/tests/host/run.sh` passes. Bugs 9 and 10 are fixed in the glue (cfg.c, adapter.c) and only model-tested; the firmware has not been built with ESP-IDF.**
+
 # Known bugs found by the host tests (2026-11-05, branch `unified`)
 
 `test_bugs.c N` fails (prints `REPRODUCED`) while bug N is there. `sh main/tests/host/run.sh` lists them and still exits 0; `STRICT=1 sh main/tests/host/run.sh` exits 1 while any is reproduced.

@@ -36,7 +36,7 @@ static DRAM_ATTR const struct { char name[12]; uint8_t dst; } outs[IBLUE_OUT_COU
     {"DPAD2_UP", IBM_RD_UP}, {"DPAD2_DOWN", IBM_RD_DOWN}, {"DPAD2_LEFT", IBM_RD_LEFT}, {"DPAD2_RIGHT", IBM_RD_RIGHT},
 };
 
-static DRAM_ATTR const char algo_names[6][11] = {"linear", "aggressive", "relaxed", "wide", "scurve", "passthrough"};
+static DRAM_ATTR const char algo_names[6][12] = {"linear", "aggressive", "relaxed", "wide", "scurve", "passthrough"};
 static DRAM_ATTR const uint8_t dz_levels[6] = {0, 135, 203, 208, 213, 218};
 
 #define DSTR(name, text) static DRAM_ATTR const char name[] = text
@@ -57,6 +57,11 @@ DSTR(W_OPT_THRESHOLD, "threshold");
 DSTR(W_OPT_SCALE, "scale");
 DSTR(W_OPT_TURBO, "turbo");
 DSTR(W_OPT_ALGO, "algo");
+DSTR(W_EQ, "=");
+DSTR(W_COLON, ":");
+DSTR(W_COMMA, ", ");
+DSTR(W_PCT, "%");
+DSTR(W_DOT, ".");
 
 /* ---- small helpers (no libc beyond memcpy) */
 static char IRAM_ATTR lower(char c) {
@@ -400,7 +405,7 @@ static void IRAM_ATTR w_deadzone(struct wr *w, uint8_t raw) {
     int level = iblue_dz_level(raw);
 
     w_str(w, W_OPT_DEADZONE);
-    w_mem(w, "=", 1);
+    w_str(w, W_EQ);
     if (level == 0) {
         w_str(w, W_OFF);
     }
@@ -409,27 +414,33 @@ static void IRAM_ATTR w_deadzone(struct wr *w, uint8_t raw) {
     }
     else if (raw > 200) {
         w_uint(w, (uint32_t)raw - 198);
-        w_mem(w, "%", 1);
+        w_str(w, W_PCT);
     }
     else {
         w_uint(w, raw / 100);
         if (raw % 100) {
-            w_mem(w, ".", 1);
+            w_str(w, W_DOT);
             w_uint(w, (raw % 100) / 10);
             if (raw % 10) {
                 w_uint(w, raw % 10);
             }
         }
-        w_mem(w, "%", 1);
+        w_str(w, W_PCT);
     }
 }
 
-size_t IRAM_ATTR iblue_map_render(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, char *buf, size_t cap) {
+size_t IRAM_ATTR iblue_map_render_ex(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, char *buf, size_t cap, int *cut) {
     struct wr w;
     uint8_t dst = iblue_out_dst(out);
     uint32_t cnt = 0;
 
+    if (cut) {
+        *cut = 0;
+    }
     if (!cap) {
+        if (cut) {
+            *cut = 1;
+        }
         return 0;
     }
     w.p = buf;
@@ -443,36 +454,36 @@ size_t IRAM_ATTR iblue_map_render(const struct iblue_mapent *map, size_t n, uint
             continue;
         }
         if (cnt) {
-            w_mem(&w, ", ", 2);
+            w_str(&w, W_COMMA);
         }
         w_str(&w, iblue_in_name(e->src_btn));
         if (e->perc_deadzone != 135) {
-            w_mem(&w, ":", 1);
+            w_str(&w, W_COLON);
             w_deadzone(&w, e->perc_deadzone);
         }
         if (e->perc_threshold != 50) {
-            w_mem(&w, ":", 1);
+            w_str(&w, W_COLON);
             w_str(&w, W_OPT_THRESHOLD);
-            w_mem(&w, "=", 1);
-            w_uint(&w, e->perc_threshold);
+            w_str(&w, W_EQ);
+            w_uint(&w, e->perc_threshold > 100 ? 100 : e->perc_threshold); /* the parser takes 0 to 100 only */
         }
         if (e->perc_max != 100) {
-            w_mem(&w, ":", 1);
+            w_str(&w, W_COLON);
             w_str(&w, W_OPT_SCALE);
-            w_mem(&w, "=", 1);
+            w_str(&w, W_EQ);
             w_uint(&w, e->perc_max);
         }
         if (e->turbo) {
-            w_mem(&w, ":", 1);
+            w_str(&w, W_COLON);
             w_str(&w, W_OPT_TURBO);
-            w_mem(&w, "=", 1);
+            w_str(&w, W_EQ);
             w_uint(&w, e->turbo);
         }
-        if (e->algo) {
-            w_mem(&w, ":", 1);
+        if (e->algo && e->algo < 6) { /* a value no tool of ours writes is left out */
+            w_str(&w, W_COLON);
             w_str(&w, W_OPT_ALGO);
-            w_mem(&w, "=", 1);
-            w_str(&w, e->algo < 6 ? algo_names[e->algo] : algo_names[0]);
+            w_str(&w, W_EQ);
+            w_str(&w, algo_names[e->algo]);
         }
         if (w.full) {
             w.p = mark; /* cut at an entry */
@@ -483,13 +494,20 @@ size_t IRAM_ATTR iblue_map_render(const struct iblue_mapent *map, size_t n, uint
     if (!cnt && !w.full) {
         w_str(&w, W_NONE);
     }
+    if (cut) {
+        *cut = w.full;
+    }
     *w.p = 0;
     return (size_t)(w.p - buf);
 }
 
+size_t IRAM_ATTR iblue_map_render(const struct iblue_mapent *map, size_t n, uint8_t port, uint32_t out, char *buf, size_t cap) {
+    return iblue_map_render_ex(map, n, port, out, buf, cap, 0);
+}
+
 /* ---- replace */
 static int IRAM_ATTR is_pad_entry_of(const struct iblue_mapent *e, uint8_t port, uint8_t dst) {
-    return e->dst_id == port && e->dst_btn == dst && e->src_btn < IBM_PAD_IDS;
+    return e->dst_id == port && e->dst_btn == dst && e->src_btn < IBM_PAD_IDS && iblue_in_name(e->src_btn);
 }
 
 size_t IRAM_ATTR iblue_map_replace(struct iblue_mapent *map, size_t n, size_t max, uint8_t port, uint32_t out, const struct iblue_mapent *ents, size_t nents) {
@@ -529,7 +547,7 @@ static int IRAM_ATTR is_dc_dst(uint8_t dst) {
 }
 
 static int IRAM_ATTR layout_owns(const struct iblue_mapent *e, uint8_t port) {
-    return e->dst_id == port && e->src_btn < IBM_PAD_IDS && is_dc_dst(e->dst_btn);
+    return e->dst_id == port && e->src_btn < IBM_PAD_IDS && iblue_in_name(e->src_btn) && is_dc_dst(e->dst_btn);
 }
 
 struct preset {
@@ -632,6 +650,12 @@ size_t IRAM_ATTR iblue_layout_apply(uint32_t layout, struct iblue_mapent *map, s
     return w;
 }
 
+static int IRAM_ATTR same_entry(const struct iblue_mapent *a, const struct iblue_mapent *b) {
+    return a->src_btn == b->src_btn && a->dst_btn == b->dst_btn && a->perc_max == b->perc_max && a->perc_threshold == b->perc_threshold &&
+           a->perc_deadzone == b->perc_deadzone && a->turbo == b->turbo && a->algo == b->algo;
+}
+
+/* The port equals a preset when, for every output, it has exactly the preset's entries (in any order): compared as entries, not as text */
 int IRAM_ATTR iblue_layout_match(const struct iblue_mapent *map, size_t n, uint8_t port) {
     for (uint32_t l = 0; l < IBLUE_LAYOUT_COUNT; l++) {
         size_t rows;
@@ -639,9 +663,11 @@ int IRAM_ATTR iblue_layout_match(const struct iblue_mapent *map, size_t n, uint8
         int same = 1;
 
         for (uint32_t o = 0; o < IBLUE_OUT_COUNT && same; o++) {
-            char have[48], want[48];
             struct iblue_mapent ents[IBLUE_MAP_PER_OUT];
+            uint8_t dst = iblue_out_dst(o);
+            size_t have = 0;
             int c = 0;
+            int found[IBLUE_MAP_PER_OUT] = {0, 0, 0, 0};
 
             for (size_t r = 0; r < rows; r++) {
                 if (eq_ci(p[r].out, cstr_len(p[r].out), outs[o].name)) {
@@ -651,9 +677,23 @@ int IRAM_ATTR iblue_layout_match(const struct iblue_mapent *map, size_t n, uint8
                     break;
                 }
             }
-            iblue_map_render(map, n, port, o, have, sizeof(have));
-            iblue_map_render(ents, c > 0 ? (size_t)c : 0, port, o, want, sizeof(want));
-            same = cstr_len(have) == cstr_len(want) && memcmp(have, want, cstr_len(have)) == 0;
+            for (size_t i = 0; i < n && same; i++) {
+                int hit = 0;
+
+                if (!is_pad_entry_of(&map[i], port, dst)) {
+                    continue;
+                }
+                have++;
+                for (int k = 0; k < c; k++) {
+                    if (!found[k] && same_entry(&map[i], &ents[k])) {
+                        found[k] = 1;
+                        hit = 1;
+                        break;
+                    }
+                }
+                same = hit;
+            }
+            same = same && have == (size_t)(c > 0 ? c : 0);
         }
         if (same) {
             return (int)l;
