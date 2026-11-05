@@ -18,6 +18,12 @@
  *    port.<A-D>.acc    none | vmu | rumble | both          (the accessory; same)
  *    sys.unsaved       yes | no: a change is waiting for call sys.commit.   call sys.commit stores, call sys.revert loads the stored one
  *    port.<A-D>.name   what the Dreamcast sees on the port (read only)
+ *    port.<A-D>.layout   standard | all | custom: a named button arrangement (the whole mapping). Setting standard or all replaces the
+ *                      pad mapping of the port; custom is what a port has when it matches none (it cannot be set, edit a map line)
+ *    port.<A-D>.layouts  standard,all,custom (read only)
+ *    port.<A-D>.map.<OUTPUT>  the inputs that drive a Dreamcast output, e.g. "ok port.A.map.Z lb" or "... C rb, lt:threshold=78"
+ *                      (iblue_mapcfg.h has the text form). get port.A.map.* / port.A.map.A1* lists outputs by prefix; set replaces the
+ *                      inputs of one output. Applied a moment after the answer (a get in the same request still shows the old line).
  *    game.id        read only: the game id openMenu sent (Maple 0x21), absent when no game
  *    net.selected   dcnow | dcnet: set by whoever knows (the Pi over BLE, openMenu over Maple), read back; not stored
  *    events         not implemented here (err events unavailable)
@@ -39,6 +45,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "sdkconfig.h"
+#include "system/iblue_mapcfg.h"
 
 #define IBLUE_DCAPI_CMD 0x22          /* the Maple command (decision D-15 in DC-UnifiedEcosystem) */
 #define IBLUE_DCAPI_REQ_MAX 252       /* bytes of request text (63 words) */
@@ -62,7 +69,13 @@
 #define IBLUE_CFG_SET_ACC 2    /* a = port, b = accessory mode (ACC_*) */
 #define IBLUE_CFG_COMMIT 3     /* store the live configuration (config_update) */
 #define IBLUE_CFG_REVERT 4     /* load the stored configuration again */
+#define IBLUE_CFG_MAP_CLEAR 5  /* a = port, b = output index (iblue_out_name()): nothing drives the output any more */
+#define IBLUE_CFG_MAP_ADD 6    /* data: op, port, output index, then the entry (src, scale, threshold, deadzone, turbo, algo); 9 bytes */
+#define IBLUE_CFG_SET_LAYOUT 7 /* a = port, b = layout index (iblue_layout_name()) */
 void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b);
+void iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e);
+/* The live mapping of a port (struct map_cfg entries; the engine reads it, also in the Maple interrupt, and never writes it) */
+const struct iblue_mapent *iblue_dcapi_cfg_map(uint32_t port, size_t *count);
 struct raw_fb;
 void iblue_dcapi_cfg_apply(const struct raw_fb *fb);
 /* The live configuration was replaced by a stored one (a new game id): nothing is waiting to be saved any more */
@@ -87,6 +100,8 @@ void iblue_dcapi_ext_caps(uint8_t *wire24);
  * per port, the state (IBLUE_PORT_*), the configured output mode and accessory mode, and the Bluetooth type / subtype. */
 void iblue_dcapi_port_count(uint32_t count);
 void iblue_dcapi_port_set(uint32_t port, uint8_t state, uint8_t dev_mode, uint8_t acc_mode, uint8_t bt_type, uint8_t bt_subtype);
+/* The layout the port's mapping equals (iblue_layout_match(): index, or -1 = custom); computed in normal code, read by the engine */
+void iblue_dcapi_port_layout(uint32_t port, int layout);
 /* BLE GET_PORT_STATUS (0x50): [count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]; returns the length */
 size_t iblue_dcapi_port_status(uint8_t *out);
 
@@ -99,6 +114,7 @@ size_t iblue_dcapi_ble_read(uint8_t *out, size_t max);
 #define iblue_dcapi_ext_caps(wire24)
 #define iblue_dcapi_port_count(count)
 #define iblue_dcapi_port_set(port, state, dev_mode, acc_mode, bt_type, bt_subtype)
+#define iblue_dcapi_port_layout(port, layout)
 #endif
 
 #endif /* _IBLUE_DCAPI_H_ */

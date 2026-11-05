@@ -11,6 +11,9 @@ cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/tap"
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/gameid" "$d/test_gameid.c" "$d/../../system/iblue_gameid.c"
 "$out/gameid"
 # the DC API engine (dc1), with the game id module and the same stubs
-cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/dcapi" "$d/test_dcapi.c" "$d/../../system/iblue_dcapi.c" "$d/../../system/iblue_gameid.c"
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/dcapi" "$d/test_dcapi.c" "$d/../../system/iblue_dcapi.c" "$d/../../system/iblue_gameid.c" "$d/../../system/iblue_mapcfg.c"
 "$out/dcapi"
+# the shared mapping text form and the layouts
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/mapcfg" "$d/test_mapcfg.c" "$d/../../system/iblue_mapcfg.c"
+"$out/mapcfg"
 rm -rf "$out"

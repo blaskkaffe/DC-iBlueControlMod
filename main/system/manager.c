@@ -507,6 +507,8 @@ static void wired_port_hdl(void) {
             port_st = IBLUE_PORT_WIRED; /* the sense input says something is plugged in: a physical controller wins; what it is, is not our business */
         }
         iblue_dcapi_port_set(p, port_st, config.out_cfg[p].dev_mode, config.out_cfg[p].acc_mode, port_type, port_subtype);
+        /* which named layout the port's mapping equals, or -1 (custom): worked out here, not in the Maple interrupt */
+        iblue_dcapi_port_layout(p, iblue_layout_match((const struct iblue_mapent *)config.in_cfg[p].map_cfg, config.in_cfg[p].map_size, (uint8_t)p));
     }
 #endif
     if (hw_config.hotplug) {

@@ -15,6 +15,14 @@ static struct { uint8_t op, a, b; } reqs[32];
 static int nreq;
 void iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b) { if (nreq < 32) { reqs[nreq].op = op; reqs[nreq].a = a; reqs[nreq].b = b; nreq++; } }
 
+/* the live mapping the engine reads, and the entries it asked to add */
+static struct iblue_mapent live[8][130];
+static size_t live_n[8];
+static struct { uint8_t port, out; struct iblue_mapent e; } adds[32];
+static int nadd;
+const struct iblue_mapent *iblue_dcapi_cfg_map(uint32_t port, size_t *count) { *count = live_n[port]; return live[port]; }
+void iblue_dcapi_cfg_request_map(uint8_t port, uint8_t out, const struct iblue_mapent *e) { if (nadd < 32) { adds[nadd].port = port; adds[nadd].out = out; adds[nadd].e = *e; nadd++; } }
+
 static char ans[IBLUE_DCAPI_ANS_MAX + 1];
 static const char *ask(const char *req) {
     iblue_dcapi_handle(req, strlen(req), ans, sizeof(ans));
@@ -62,7 +70,7 @@ int main(void) {
     iblue_dcapi_port_set(1, IBLUE_PORT_EMPTY, 3, 0, 0, 0);                     /* B: nothing, configured as mouse */
     SAME(ask("dc1\nget port.A.state\nget port.A.mode\nget port.A.acc\nget port.A.name\n"),
          "dc1\nok port.A.state bt\nok port.A.mode normal\nok port.A.acc vmu\nok port.A.name Dreamcast Controller\n");
-    SAME(ask("dc1\nget port.B.*\n"), "dc1\nok port.B.state empty\nok port.B.mode mouse\nok port.B.acc none\nok port.B.name Dreamcast Mouse\nok port.B.modes normal,dual,keyboard,mouse\nok port.B.accs none,vmu,rumble,both\n");
+    SAME(ask("dc1\nget port.B.*\n"), "dc1\nok port.B.state empty\nok port.B.mode mouse\nok port.B.acc none\nok port.B.name Dreamcast Mouse\nok port.B.modes normal,dual,keyboard,mouse\nok port.B.accs none,vmu,rumble,both\nok port.B.layout custom\nok port.B.layouts standard,all,custom\n");
     SAME(ask("dc1\nget port.C.state\nget port.E.state\nget port.A.colour\n"),
          "dc1\nerr port.C.state unavailable no such port\nerr port.E.state unknown\nerr port.A.colour unknown\n");
     CHECK(strstr(ask("dc1\nget port.*\n"), "ok port.A.state bt\nok port.A.mode normal") != NULL);
@@ -219,6 +227,78 @@ int main(void) {
         SAME(got, ask(req));
         CHECK(iblue_dcapi_ble_read(rd, 23) == 1 && rd[0] == 0);    /* read past the end: empty, last */
         CHECK(iblue_dcapi_ble_read(rd, 1) == 0);
+    }
+
+    /* ---- layouts and the mapping of an output (port.X.layout, port.X.layouts, port.X.map.<OUTPUT>) */
+    iblue_dcapi_port_count(2);
+    for (uint32_t i = 0; i < 88; i++) {
+        live[0][live_n[0]++] = (struct iblue_mapent){(uint8_t)i, (uint8_t)i, 0, 100, 50, 135, 0, 0};   /* BlueRetro's default, port A */
+    }
+    live[1][live_n[1]++] = (struct iblue_mapent){IBM_RB_DOWN, IBM_RB_DOWN, 1, 100, 50, 135, 0, 0};
+    SAME(ask("dc1\nget port.A.layouts\nget port.A.layout\n"), "dc1\nok port.A.layouts standard,all,custom\nok port.A.layout custom\n");   /* not known yet */
+    iblue_dcapi_port_layout(0, iblue_layout_match(live[0], live_n[0], 0));
+    SAME(ask("dc1\nget port.A.layout\n"), "dc1\nok port.A.layout all\n");
+    iblue_dcapi_port_layout(0, -1);
+    SAME(ask("dc1\nget port.A.layout\n"), "dc1\nok port.A.layout custom\n");
+    CHECK(strstr(ask("dc1\nget port.A.*\n"), "ok port.A.layout custom\nok port.A.layouts standard,all,custom\n") != NULL);
+    nreq = 0;
+    SAME(ask("dc1\nset port.A.layout standard\nget port.A.layout\nget sys.unsaved\n"), "dc1\nok port.A.layout standard\nok port.A.layout standard\nok sys.unsaved yes\n");
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_SET_LAYOUT && reqs[0].a == 0 && reqs[0].b == 0);
+    nreq = 0;
+    SAME(ask("dc1\nset port.A.layout custom\n"), "dc1\nerr port.A.layout range standard or all\n");
+    SAME(ask("dc1\nset port.A.layout nonsense\n"), "dc1\nerr port.A.layout range standard or all\n");
+    SAME(ask("dc1\nset port.C.layout all\n"), "dc1\nerr port.C.layout unavailable no such port\n");
+    SAME(ask("dc1\nset port.A.layouts all\n"), "dc1\nerr port.A.layouts readonly\n");
+    CHECK(nreq == 0);
+
+    SAME(ask("dc1\nget port.A.map.Z\nget port.A.map.C\nget port.A.map.d\nget port.A.map.START\n"),
+         "dc1\nok port.A.map.Z lb\nok port.A.map.C rb\nok port.A.map.D back\nok port.A.map.START start\n");
+    SAME(ask("dc1\nget port.A.map.DPAD2_UP\nget port.B.map.A\nget port.B.map.Z\n"),
+         "dc1\nok port.A.map.DPAD2_UP dpad2.up\nok port.B.map.A a\nok port.B.map.Z none\n");
+    SAME(ask("dc1\nget port.A.map.A1*\n"),
+         "dc1\nok port.A.map.A1_UP lstick.up\nok port.A.map.A1_DOWN lstick.down\nok port.A.map.A1_LEFT lstick.left\nok port.A.map.A1_RIGHT lstick.right\n");
+    SAME(ask("dc1\nget port.A.map.Q\nget port.A.map.\nget port.C.map.A\nget port.A.map.Q*\n"),
+         "dc1\nerr port.A.map.Q unknown\nerr port.A.map. unknown\nerr port.C.map.A unavailable no such port\nerr port.A.map.Q* unknown\n");
+    {
+        const char *all = ask("dc1\nget port.A.map.*\n");
+        CHECK(strncmp(all, "dc1\nok port.A.map.A a\nok port.A.map.B b\n", 38) == 0);
+        CHECK(strlen(all) <= IBLUE_DCAPI_ANS_MAX && all[strlen(all) - 1] == '\n');        /* cut at a line end */
+    }
+
+    /* set: clear, then one add per input, in order; the answer shows what was understood */
+    nreq = 0; nadd = 0;
+    SAME(ask("dc1\nset port.A.map.C rb , LT:threshold=78:deadzone=2\nget sys.unsaved\n"),
+         "dc1\nok port.A.map.C rb, lt:deadzone=2:threshold=78\nok sys.unsaved yes\n");
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_MAP_CLEAR && reqs[0].a == 0 && reqs[0].b == (uint8_t)iblue_out_find("C", 1));
+    CHECK(nadd == 2);
+    CHECK(adds[0].port == 0 && adds[0].out == reqs[0].b && adds[0].e.src_btn == IBM_RS && adds[0].e.dst_btn == IBM_RS && adds[0].e.dst_id == 0);
+    CHECK(adds[1].e.src_btn == IBM_LM && adds[1].e.dst_btn == IBM_RS && adds[1].e.perc_threshold == 78 && adds[1].e.perc_deadzone == 203);
+    nreq = 0; nadd = 0;
+    SAME(ask("dc1\nset port.A.map.D none\n"), "dc1\nok port.A.map.D none\n");
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_MAP_CLEAR && nadd == 0);
+    nreq = 0; nadd = 0;
+    SAME(ask("dc1\nset port.A.map.D zz\nset port.A.map.D a:deadzone=9\nset port.A.map.Q a\nset port.D.map.A a\n"),
+         "dc1\nerr port.A.map.D range unknown input name\nerr port.A.map.D range deadzone off, 1 to 5 or n%\nerr port.A.map.Q unknown\nerr port.D.map.A unavailable no such port\n");
+    CHECK(nreq == 0 && nadd == 0);                         /* a refused set asks for nothing */
+    SAME(ask("dc1\nset port.A.map.D a,b,x,y,lb\n"), "dc1\nerr port.A.map.D range at most 4 inputs per output\n");
+
+    /* the Maple transport answers the same keys */
+    {
+        const char *req = "dc1\nget port.A.map.Z\n";
+        size_t rl = strlen(req);
+        uint8_t wire[256], outw[IBLUE_DCAPI_ANS_MAX + 4];
+        size_t pad = (rl + 3) & ~3u;
+        memset(wire, 0, sizeof(wire));
+        for (size_t w = 0; w < pad; w += 4) {
+            for (size_t j = 0; j < 4; j++) { wire[w + j] = (w + 3 - j) < rl ? (uint8_t)req[w + 3 - j] : 0; }
+        }
+        size_t words = iblue_dcapi_maple(wire, pad, outw);
+        char back[IBLUE_DCAPI_ANS_MAX + 4];
+        for (size_t w = 0; w < words * 4; w += 4) {
+            for (size_t j = 0; j < 4; j++) { back[w + j] = (char)outw[w + 3 - j]; }
+        }
+        back[words * 4] = 0;
+        SAME(back, "dc1\nok port.A.map.Z lb\n");
     }
 
     printf("dcapi: %d checks, %d failed\n", checks, fails);

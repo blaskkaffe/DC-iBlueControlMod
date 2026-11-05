@@ -69,6 +69,7 @@ set(srcs
     "system/iblue_gameid.c"
     "system/iblue_dcapi.c"
     "system/iblue_dcapi_cfg.c"
+    "system/iblue_mapcfg.c"
     "system/iblue_gesture.c"
     "system/iblue_tap.c"
     "system/bare_metal_app_cpu.c"

@@ -23,6 +23,7 @@
 #include "macro.h"
 #include "bluetooth/host.h"
 #include "tests/cmds.h"
+#include "system/iblue_mapcfg.h"
 
 const uint32_t hat_to_ld_btns[16] = {
     BIT(PAD_LD_UP), BIT(PAD_LD_UP) | BIT(PAD_LD_RIGHT), BIT(PAD_LD_RIGHT), BIT(PAD_LD_DOWN) | BIT(PAD_LD_RIGHT),
@@ -105,7 +106,7 @@ static uint32_t adapter_map_from_axis(struct map_cfg * map_cfg) {
                 /* Keep track of source axis type */
                 out->axes[dst_axis_idx].relative = ctrl_input->axes[src_axis_idx].meta->relative;
                 /* Dst is an axis */
-                int32_t deadzone = (int32_t)(((float)map_cfg->perc_deadzone / 10000) * src_abs_max) + ctrl_input->axes[src_axis_idx].meta->deadzone;
+                int32_t deadzone = (int32_t)(((float)iblue_dz_x10000(map_cfg->perc_deadzone) / 10000) * src_abs_max) + ctrl_input->axes[src_axis_idx].meta->deadzone;
                 /* Check if axis over deadzone */
                 if (abs_src_value > deadzone) {
                     int32_t value = abs_src_value - deadzone;

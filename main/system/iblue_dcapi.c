@@ -5,6 +5,7 @@
 #include <esp_attr.h>
 #include "system/iblue_dcapi.h"
 #include "system/iblue_gameid.h"
+#include "system/iblue_mapcfg.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
 
@@ -26,6 +27,8 @@ DSTR(S_UNKNOWN, " unknown");
 DSTR(S_READONLY, " readonly");
 DSTR(S_RANGE_MODE, " range normal dual keyboard or mouse");
 DSTR(S_RANGE_ACC, " range none vmu rumble or both");
+DSTR(S_RANGE_LAYOUT, " range standard or all");
+DSTR(S_MAPDOT, ".map.");
 DSTR(S_YES, "yes");
 DSTR(S_NO, "no");
 DSTR(S_DONE, "done");
@@ -50,11 +53,13 @@ DSTR(S_UNKNOWN_VERSION, "unknown");
 DSTR(S_PORT, "port.");
 DSTR(S_NOPORT, " unavailable no such port");
 /* port fields: state mode acc name */
-enum { F_STATE, F_MODE, F_ACC, F_NAME, F_MODES, F_ACCS, F_COUNT };
-static DRAM_ATTR const char field_names[F_COUNT][6] = {"state", "mode", "acc", "name", "modes", "accs"};
+enum { F_STATE, F_MODE, F_ACC, F_NAME, F_MODES, F_ACCS, F_LAYOUT, F_LAYOUTS, F_COUNT };
+static DRAM_ATTR const char field_names[F_COUNT][8] = {"state", "mode", "acc", "name", "modes", "accs", "layout", "layouts"};
 DSTR(S_MODES, "normal,dual,keyboard,mouse"); /* what `set port.X.mode` accepts here */
 DSTR(S_ACCS, "none,vmu,rumble,both");
 DSTR(S_STORE, "commit");
+DSTR(S_LAYOUTS, "standard,all,custom");
+DSTR(S_CUSTOM, "custom");
 static DRAM_ATTR const char state_names[3][6] = {"empty", "bt", "wired"};
 static DRAM_ATTR const char mode_names[4][9] = {"normal", "dual", "keyboard", "mouse"};
 static DRAM_ATTR const char acc_names[4][7] = {"none", "vmu", "rumble", "both"};
@@ -79,6 +84,7 @@ static DRAM_ATTR volatile uint8_t unsaved; /* a live change waits for sys.commit
 static DRAM_ATTR volatile uint8_t port_cnt;
 static DRAM_ATTR volatile uint8_t port_state[IBLUE_DCAPI_PORTS], port_mode[IBLUE_DCAPI_PORTS], port_acc[IBLUE_DCAPI_PORTS];
 static DRAM_ATTR volatile uint8_t port_bt_type[IBLUE_DCAPI_PORTS], port_bt_sub[IBLUE_DCAPI_PORTS];
+static DRAM_ATTR volatile uint8_t port_layout[IBLUE_DCAPI_PORTS] = {0xFF, 0xFF, 0xFF, 0xFF}; /* index of the matching layout, 0xFF = custom */
 
 /* maple and ble keep their own buffers (static: the interrupt has little stack) */
 static DRAM_ATTR char maple_req[IBLUE_DCAPI_REQ_MAX + 1];
@@ -195,6 +201,12 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
             case F_ACCS:
                 o_str(o, S_ACCS);
                 return 0;
+            case F_LAYOUT:
+                o_str(o, port_layout[p] < IBLUE_LAYOUT_COUNT ? iblue_layout_name(port_layout[p]) : S_CUSTOM);
+                return 0;
+            case F_LAYOUTS:
+                o_str(o, S_LAYOUTS);
+                return 0;
             default:
                 return 1;
         }
@@ -265,6 +277,108 @@ static int IRAM_ATTR find_key(const char *s, size_t n) {
     return -1;
 }
 
+/* ---- port.<A-D>.map.<OUTPUT> (not in the key table: the outputs are a list of their own, iblue_mapcfg.c) */
+/* 1 if key is port.X.map.<something>: the port 0..3 and the part after "map." */
+static int IRAM_ATTR map_key(const char *key, size_t klen, uint32_t *port, const char **name, size_t *nlen) {
+    if (klen < 12 || !has_prefix(S_PORT, key, 5) || key[5] < 'A' || key[5] > 'D' || !has_prefix(S_MAPDOT, key + 6, 5)) {
+        return 0;
+    }
+    *port = (uint32_t)(key[5] - 'A');
+    *name = key + 11;
+    *nlen = klen - 11;
+    return 1;
+}
+
+static void IRAM_ATTR map_key_out(struct out *o, uint32_t port, uint32_t out) {
+    char pre[7] = {'p', 'o', 'r', 't', '.', (char)('A' + port), '.'};
+
+    o_str(o, S_OK);
+    o_mem(o, pre, 7);
+    o_str(o, S_MAPDOT + 1);
+    o_str(o, iblue_out_name(out));
+    o_str(o, S_SP);
+}
+
+static void IRAM_ATTR map_get_line(struct out *o, uint32_t port, uint32_t out) {
+    size_t n = 0;
+    const struct iblue_mapent *map = iblue_dcapi_cfg_map(port, &n);
+    size_t room = (size_t)(o->end - o->p) + 1;
+
+    map_key_out(o, port, out);
+    if (!o->cut && room > 1) {
+        o->p += iblue_map_render(map, n, (uint8_t)port, out, o->p, (size_t)(o->end - o->p) + 1);
+    }
+    o_end_line(o);
+}
+
+static void IRAM_ATTR map_get(struct out *o, const char *key, size_t klen, uint32_t port, const char *name, size_t nlen) {
+    int rows = 0;
+
+    if (port >= port_cnt || port >= IBLUE_DCAPI_PORTS) {
+        line_err(o, key, klen, S_NOPORT);
+        return;
+    }
+    if (nlen && name[nlen - 1] == '*') {
+        for (uint32_t i = 0; i < IBLUE_OUT_COUNT; i++) {
+            const char *nm = iblue_out_name(i);
+            size_t k = 0;
+
+            while (k < nlen - 1 && nm[k] && (nm[k] | 0x20) == (name[k] | 0x20)) {
+                k++;
+            }
+            if (k == nlen - 1) {
+                map_get_line(o, port, i);
+                rows++;
+            }
+        }
+        if (!rows) {
+            line_err(o, key, klen, S_UNKNOWN);
+        }
+        return;
+    }
+    {
+        int out = iblue_out_find(name, nlen);
+
+        if (out < 0) {
+            line_err(o, key, klen, S_UNKNOWN);
+        }
+        else {
+            map_get_line(o, port, (uint32_t)out);
+        }
+    }
+}
+
+static void IRAM_ATTR map_set(struct out *o, const char *key, size_t klen, uint32_t port, const char *name, size_t nlen, const char *val, size_t vlen) {
+    struct iblue_mapent ents[IBLUE_MAP_PER_OUT];
+    const char *why = S_UNKNOWN;
+    int out = iblue_out_find(name, nlen);
+    int c;
+
+    if (port >= port_cnt || port >= IBLUE_DCAPI_PORTS) {
+        line_err(o, key, klen, S_NOPORT);
+        return;
+    }
+    if (out < 0) {
+        line_err(o, key, klen, S_UNKNOWN);
+        return;
+    }
+    c = iblue_map_parse(val, vlen, (uint32_t)out, (uint8_t)port, ents, &why);
+    if (c < 0) {
+        line_err(o, key, klen, why);
+        return;
+    }
+    iblue_dcapi_cfg_request(IBLUE_CFG_MAP_CLEAR, (uint8_t)port, (uint8_t)out);
+    for (int i = 0; i < c; i++) {
+        iblue_dcapi_cfg_request_map((uint8_t)port, (uint8_t)out, &ents[i]);
+    }
+    unsaved = 1;
+    map_key_out(o, port, (uint32_t)out);
+    if (!o->cut) {
+        o->p += iblue_map_render(ents, (size_t)c, (uint8_t)port, (uint32_t)out, o->p, (size_t)(o->end - o->p) + 1);
+    }
+    o_end_line(o);
+}
+
 /* ---- the operations */
 static void IRAM_ATTR op_get(struct out *o, const char *key, size_t klen) {
     int id;
@@ -279,6 +393,16 @@ static void IRAM_ATTR op_get(struct out *o, const char *key, size_t klen) {
         o_str(o, S_NOEVENTS);
         o->last_nl = o->p;
         return;
+    }
+    {
+        uint32_t mp;
+        const char *mn;
+        size_t mnl;
+
+        if (map_key(key, klen, &mp, &mn, &mnl)) {
+            map_get(o, key, klen, mp, mn, mnl);
+            return;
+        }
     }
     if (klen && key[klen - 1] == '*') {
         int rows = 0;
@@ -338,8 +462,14 @@ static void IRAM_ATTR op_get(struct out *o, const char *key, size_t klen) {
 
 static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const char *val, size_t vlen) {
     int id = find_key(key, klen);
+    uint32_t mp;
+    const char *mn;
+    size_t mnl;
 
-    if (id < 0) {
+    if (map_key(key, klen, &mp, &mn, &mnl)) {
+        map_set(o, key, klen, mp, mn, mnl, val, vlen);
+    }
+    else if (id < 0) {
         line_err(o, key, klen, S_UNKNOWN);
     }
     else if (id >= PORT_ID_BASE) {
@@ -347,7 +477,24 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
         uint32_t f = (uint32_t)(id - PORT_ID_BASE) % 8;
         int v = -1;
 
-        if (f != F_MODE && f != F_ACC) {
+        if (f == F_LAYOUT) {
+            int l = iblue_layout_find(val, vlen);
+
+            if (p >= port_cnt || p >= IBLUE_DCAPI_PORTS) {
+                line_err(o, key, klen, S_NOPORT);
+            }
+            else if (l < 0) {
+                line_err(o, key, klen, S_RANGE_LAYOUT);
+            }
+            else {
+                /* a mapping only: no wired restart. Applied in normal code; not stored until call sys.commit */
+                iblue_dcapi_cfg_request(IBLUE_CFG_SET_LAYOUT, (uint8_t)p, (uint8_t)l);
+                port_layout[p] = (uint8_t)l;
+                unsaved = 1;
+                line_ok(o, (uint8_t)id);
+            }
+        }
+        else if (f != F_MODE && f != F_ACC) {
             line_err(o, key, klen, S_READONLY);
         }
         else if (p >= port_cnt || p >= IBLUE_DCAPI_PORTS) {
@@ -583,6 +730,12 @@ void iblue_dcapi_port_set(uint32_t port, uint8_t state, uint8_t dev_mode, uint8_
     port_acc[port] = acc_mode;
     port_bt_type[port] = bt_type;
     port_bt_sub[port] = bt_subtype;
+}
+
+void iblue_dcapi_port_layout(uint32_t port, int layout) {
+    if (port < IBLUE_DCAPI_PORTS) {
+        port_layout[port] = (uint8_t)(layout >= 0 && layout < IBLUE_LAYOUT_COUNT ? layout : 0xFF);
+    }
 }
 
 size_t iblue_dcapi_port_status(uint8_t *out) {
