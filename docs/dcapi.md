@@ -21,7 +21,7 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 | `sys.unsaved` | `yes` while a live change waits to be stored, else `no`. `call sys.commit` stores it (`config_update`, as the web config does), `call sys.revert` loads the stored configuration again; both answer `done` or `nothing` and only act when something is waiting. A new game id loads another stored configuration and also clears the flag |
 | `events` | not implemented: `err events unavailable not implemented` |
 
-`led.*`, `pair.*` of the design are not here yet; the capability bits say what is: `api` (bit 0), `net` (bit 1), `port` (bit 3), `game` (bit 5) = `0x2B`. Bit 4 was `profile`: profiles are not part of BlueRetro and were removed, the bit is reserved.
+`led.*`, `pair.*` of the design are not here yet; `port.<X>.layout`, `port.<X>.layouts` and `port.<X>.map.<OUTPUT>` are in (see below); the capability bits say what is: `api` (bit 0), `net` (bit 1), `port` (bit 3), `game` (bit 5) = `0x2B`. Bit 4 was `profile`: profiles are not part of BlueRetro and were removed, the bit is reserved.
 
 **How a change is applied:** the Maple interrupt cannot touch files or restart the wired side, so the engine only queues a message (`FB_TYPE_API_CFG`, three bytes, like the game id); `host.c` hands it to `iblue_dcapi_cfg_apply()` (`system/iblue_dcapi_cfg.c`) in the Bluetooth task, which writes `config.out_cfg[]`, and for a mode change asks the system manager for `SYS_MGR_CMD_WIRED_RST`. The answer to the `set` does not wait for that; the engine's own copy of the value changes at once so reading it back shows it.
 
@@ -42,3 +42,23 @@ Command `0x50` `GET_PORT_STATUS` (info feature bit 5, read only) answers `[count
 ### Command `0x51` (info feature bit 6)
 
 One read answers at most 23 bytes, so the tunnel is chunked: write `0x51`, a flags byte (bit 0 first chunk, bit 1 last chunk) and up to 20 bytes of request text, as many writes as needed; after the last chunk, read: byte 0 is `1` while more of the answer follows (read again) and `0` on the last chunk, then up to 22 bytes of text. Reading past the end gives a single `0`.
+
+
+## Layouts and the mapping of an output (2026-11-05)
+
+`system/iblue_mapcfg.c` (portable, host-tested with 1032 checks) is the text form of BlueRetro's mapping table; the engine reads and queues changes, it never writes the configuration itself.
+
+| Key | Meaning |
+|---|---|
+| `port.<X>.layouts` | `standard,all,custom` (read only) |
+| `port.<X>.layout` | the preset the port's mapping equals, or `custom`. `set` to `standard` or `all` replaces the pad mapping of the port (keyboard, mouse, combo and other-port entries are kept); `custom` cannot be set |
+| `port.<X>.map.<OUTPUT>` | the inputs that drive a Dreamcast output: `lb`, `rb, lt:threshold=78`, `none`. `get port.A.map.A1*` lists by prefix. `set` replaces the inputs of that output |
+
+Outputs (upper case): `A B X Y START D Z C LT RT A1_UP A1_DOWN A1_LEFT A1_RIGHT A2_* DPAD_* DPAD2_*`. Inputs (lower case, XInput names): `a b x y lb rb lt rt back start guide share lstick.up|down|left|right|click rstick.* dpad.* dpad2.*`; Pico2Maple's spellings (`A1_UP`, `DPAD_DOWN`, `SELECT`) are read too. Options after a colon: `deadzone=off|1..5|n%`, `threshold=0..100`, `scale=0..255`, `turbo=0..255`, `algo=linear|aggressive|relaxed|wide|scurve|passthrough`. At most 4 inputs per output.
+
+- **Applying:** `set` asks (`IBLUE_CFG_MAP_CLEAR`, then one `IBLUE_CFG_MAP_ADD` per input, or `IBLUE_CFG_SET_LAYOUT`); the Bluetooth task does it. The answer shows what was understood; a `get` in the same request still shows the old line. Not stored until `call sys.commit`; `sys.unsaved` becomes `yes`. The message queue holds 16 messages shared with rumble and LED feedback and is best effort: a set of four inputs uses five.
+- **`layout` is computed in `manager.c`** (the Maple interrupt does not compare presets); it follows web-config edits on the next pass.
+- **BlueRetro's factory default is the `all` layout** (the bumpers are Z and C, Back is D, the second d-pad is DPAD2): tested.
+- **`standard`** is the Pico2Maple layout as read from the Microsap reconstruction (right bumper Z, a fully pulled left trigger C, left bumper and right trigger drive RT): **not checked on a Pico2Maple**.
+- **Deadzone byte:** values up to 200 keep their old meaning (hundredths of a percent, default 135 = 1.35 %). **201 to 255 now mean 3 to 57 percent** (`value - 198`), so the levels 2 to 5 (5, 10, 15, 20 %) fit the byte. A configuration that had a value above 200 (the hosted web page offers 205, 210 ... in steps of 5) now has a much bigger deadzone. `iblue_dz_x10000()` is the only place that knows; `adapter.c` uses it.
+- **Never built with ESP-IDF:** `iblue_dcapi_cfg.c`, `manager.c` and `adapter.c` changes were only syntax-checked against stub headers. The Maple interrupt renders a line (a scan of the mapping table) per `get`: the time it takes inside the interrupt was not measured.
