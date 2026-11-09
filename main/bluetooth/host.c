@@ -28,7 +28,7 @@
 #include "system/fs.h"
 #include "adapter/config.h"
 #include "adapter/gameid.h"
-#include "system/iblue_dcapi.h"
+#include "iblue/iblue_dcapi.h"
 #include "adapter/memory_card.h"
 #include "adapter/wired/wired.h"
 #include "adapter/hid_parser.h"

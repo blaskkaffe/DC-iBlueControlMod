@@ -1,7 +1,7 @@
-/* Property tests of system/iblue_mapcfg.c: round trips, render caps, replace, layouts, the deadzone codec. See run.sh.
+/* Property tests of iblue/iblue_mapcfg.c: round trips, render caps, replace, layouts, the deadzone codec. See run.sh.
  * Everything here must pass today; behaviour that is wrong lives in test_bugs.c. */
 #include "tcommon.h"
-#include "system/iblue_mapcfg.h"
+#include "iblue/iblue_mapcfg.h"
 
 #define MAXE 128
 typedef struct iblue_mapent ent_t;

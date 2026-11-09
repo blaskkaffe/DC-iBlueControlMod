@@ -45,7 +45,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "sdkconfig.h"
-#include "system/iblue_mapcfg.h"
+#include "iblue/iblue_mapcfg.h"
 
 #define IBLUE_DCAPI_CMD 0x22          /* the Maple command (decision D-15 in DC-UnifiedEcosystem) */
 #define IBLUE_DCAPI_REQ_MAX 252       /* bytes of request text (63 words) */

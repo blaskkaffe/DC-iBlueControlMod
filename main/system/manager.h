@@ -21,6 +21,9 @@ enum {
 
 void sys_mgr_cmd(uint8_t cmd);
 void sys_mgr_init(uint32_t package);
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+void sys_mgr_iblue_early(void);
+#endif
 
 #if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD) && (CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S > 0)
 #define IBLUE_PAIR_WINDOW 1

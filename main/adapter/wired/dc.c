@@ -446,6 +446,9 @@ void dc_from_generic(int32_t dev_mode, struct wired_ctrl *ctrl_data, struct wire
             dc_mouse_from_generic(ctrl_data, wired_data);
             break;
         case DEV_PAD:
+        case DEV_PAD_ALT:
+        case DEV_RACING: /* same condition as the pad, the console reads the three axes it was told about */
+        case DEV_MARACAS: /* the sticks are the four axes of the two maracas */
         default:
             dc_ctrl_from_generic(ctrl_data, wired_data);
             break;

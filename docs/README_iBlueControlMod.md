@@ -77,14 +77,10 @@ Software-only differences that are not needed for compatibility:
 
 ## The fork
 
-The patch is gated behind a new Kconfig option, `CONFIG_BLUERETRO_HW_IBLUECONTROLMOD`, and a build config `configs/hw2/dreamcast_iblue`. There are two branches:
+The patch is gated behind a new Kconfig option, `CONFIG_BLUERETRO_HW_IBLUECONTROLMOD`, and a build config `configs/hw2/dreamcast_iblue`. It sits on top of final upstream BlueRetro (`e1a9831`, Dec 2025); use IDF `030c995` (v5.5-dev), which BlueRetroRoot pins.
 
-- `iblue-v1.9`: the exact vendor base. Use IDF v5.1.1. The first commit restores the IDF 5.1 `startup.c`, as the vendor did.
-  - Rebuilt with the patch, **2,266 functions** match the vendor image byte-for-byte.
-  - `sys_mgr_power_on`, `sys_mgr_power_off`, `sys_mgr_deep_sleep` and both status-LED functions are identical.
-  - `sys_mgr_init`/`sys_mgr_task` differ only in vendor logging and inlining.
-- `iblue-latest`: the same changes on top of final upstream (`e1a9831`, Dec 2025). Use IDF `030c995` (v5.5-dev), which BlueRetroRoot pins.
-  - Upstream added `hw_config`. The fork sets `power_pin_is_hold=1`, `hotplug=1`, `sw_io0_hold_thres_ms={3000,6000,10000}`, and forces `external_adapter=0`.
+- Upstream added `hw_config`. The fork sets `power_pin_is_hold=1`, `hotplug=1`, `sw_io0_hold_thres_ms={3000,6000,10000}`, and forces `external_adapter=0`.
+- (The vendor's own v1.9 base was used to find the pin changes: rebuilt with the patch, 2,266 functions match the vendor image byte-for-byte. No v1.9 build is kept or shipped.)
 
 Build:
 
@@ -119,14 +115,13 @@ Check your partition table with `esptool.py read_flash 0x8000 0xc00 pt.bin` and 
 
 **Prefer OTA through the BlueRetro web config.** OTA only writes the next `ota_x` slot. The vendor app stays in `factory` and the bootloader is never touched.
 
-**Factory reset recovers from a bad OTA app**, but only if that app boots far enough to run the system manager with the button on GPIO16. Both fork branches keep this path. Holding the button erases `otadata`, so the bootloader falls back to whatever is in the `factory` partition.
+**Factory reset recovers from a bad OTA app**, but only if that app boots far enough to run the system manager with the button on GPIO16. The fork keeps this path. Holding the button erases `otadata`, so the bootloader falls back to whatever is in the `factory` partition.
 That is most likely the vendor app, but confirm it from your backup:
-- `iblue-v1.9`: hold for more than 10 s.
-- `iblue-latest`: hold for 30 s. Upstream only wipes `otadata` after 30 s; between 10 and 30 s it only resets the config.
-  A factory reset sent over Bluetooth from the web config also only resets the config on this branch. On `iblue-v1.9` it erases `otadata` as well.
+- Hold the button for 30 s. Upstream only wipes `otadata` after 30 s; between 10 and 30 s it only resets the config.
+  A factory reset sent over Bluetooth from the web config also only resets the config.
 - If the app doesn't boot at all, use UART through the debug header, or OTA from blueretro.io if Bluetooth still comes up (that is how bdavez recovered).
 
-**Keep the image small and the flash header compatible.** The app must fit the OTA slot. Upstream slots are 1 MB; the fork images are about 565 KB (v1.9) and about 607 KB (latest). Keep the 8 MB flash-size header the vendor used, so the partition table is never seen as larger than the flash.
+**Keep the image small and the flash header compatible.** The app must fit the OTA slot. Upstream slots are 1 MB; the fork images are about 607 KB to 620 KB. Keep the 8 MB flash-size header the vendor used, so the partition table is never seen as larger than the flash.
 
 **Do not use `idf.py flash` blindly.** It also writes the bootloader, partition table and `ota_data_initial`. Over UART, write only the app to `ota_0`:
 

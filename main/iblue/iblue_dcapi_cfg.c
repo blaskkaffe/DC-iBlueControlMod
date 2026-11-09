@@ -10,7 +10,7 @@
 #include "adapter/adapter.h"
 #include "adapter/config.h"
 #include "system/manager.h"
-#include "system/iblue_dcapi.h"
+#include "iblue/iblue_dcapi.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
 

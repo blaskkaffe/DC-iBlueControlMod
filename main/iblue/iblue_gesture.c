@@ -6,8 +6,9 @@
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "system/manager.h"
-#include "system/iblue_led.h"
-#include "system/iblue_gesture.h"
+#include "iblue/iblue_led.h"
+#include "iblue/iblue_gameid_ctl.h"
+#include "iblue/iblue_gesture.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 
@@ -84,6 +85,9 @@ void iblue_gesture_run(uint32_t gesture) {
             break;
         case IBLUE_ACT_DISCONNECT:
             bt_host_disconnect_all();
+            break;
+        case IBLUE_ACT_TOGGLE_GAMEID:
+            iblue_led_notice(iblue_gameid_ctl_toggle() ? 1 : 2);
             break;
         default:
             break;

@@ -1,9 +1,9 @@
 /* Prints the boot animation as frames: one line per frame, "<ms> d0 d1 d2 d3 | h0 .. h40" (PWM duty 0..1023,
  * then the water height at 41 points).
- * cc -o anim_frames anim_frames.c ../../system/iblue_anim_curve.c -lm && ./anim_frames <total_ms> <fps> */
+ * cc -o anim_frames anim_frames.c ../../iblue/iblue_anim_curve.c -lm && ./anim_frames <total_ms> <fps> */
 #include <stdio.h>
 #include <stdlib.h>
-#include "../../system/iblue_anim_curve.h"
+#include "../../iblue/iblue_anim_curve.h"
 
 int main(int argc, char **argv) {
     uint32_t total = argc > 1 ? (uint32_t)atoi(argv[1]) : 6000;

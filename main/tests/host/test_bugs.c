@@ -3,8 +3,8 @@
  * Usage: test_bugs N   (run.sh runs 1..N one by one: an ASAN abort is a reproduction too). test_bugs list  prints the table. */
 #include "tcommon.h"
 #include "adapter/adapter.h"
-#include "system/iblue_gameid.h"
-#include "system/iblue_dcapi.h"
+#include "iblue/iblue_gameid.h"
+#include "iblue/iblue_dcapi.h"
 
 void adapter_q_fb(struct raw_fb *fb_data) { (void)fb_data; }
 

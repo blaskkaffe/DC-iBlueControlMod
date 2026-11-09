@@ -22,6 +22,7 @@
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "iblue_led.h"
+#include "iblue_port_led.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 
@@ -70,6 +71,8 @@ static volatile uint32_t sleeping;
 static volatile uint32_t sweeping;
 static volatile uint32_t connecting;
 static volatile uint32_t sweep_t;
+static volatile uint32_t notice_ticks; /* frames left of a notice (see iblue_led_notice) */
+static volatile uint32_t notice_total;
 static uint8_t custom_rgb[3] = {255, 22, 0};
 static uint32_t has_custom;
 static uint32_t init_done;
@@ -105,15 +108,22 @@ static void set_level(uint32_t level_1023) {
 static void iblue_led_task(void *arg) {
     uint32_t t = 0;
     uint32_t connect_ms = 0;
-    float shown = 0.0f; /* what the eye sees of the solid LED, 0..1, while it fades in */
+    float shown = 1.0f; /* what the eye sees of the solid LED, 0..1: on fully from the start, no fade-in at power-on */
+    uint32_t breath_t = 0; /* time into the pairing breath: it starts at full brightness every time it begins */
 
     while (1) {
         uint32_t level = IBLUE_LED_MAX_DUTY;
         int solid = 0;
+        int breathing = 0;
 
         connect_ms = connecting ? connect_ms + IBLUE_LED_TICK_MS : 0;
         if (sleeping) {
             level = 0;
+        }
+        else if (notice_ticks) {
+            /* a dip: 8 frames dark, 8 lit, once per count */
+            level = (((notice_total - notice_ticks) % 16) < 8) ? 0 : IBLUE_LED_MAX_DUTY;
+            notice_ticks--;
         }
         else if (sweeping) {
             /* Colour adjust: sweep the hue wheel, starting at red */
@@ -127,17 +137,23 @@ static void iblue_led_task(void *arg) {
                 level = ((t % period) < (period / 2)) ? IBLUE_LED_MAX_DUTY : 0;
             }
         }
+        else if (iblue_port_led_busy()) {
+            /* the boot animation plays on the port LEDs: the power LED stays solid until it is over */
+            solid = 1;
+        }
         else if (connect_ms && connect_ms < IBLUE_LED_CONNECT_MAX_MS) {
             /* a controller is connecting: blink in the chosen colour until it is ready */
             level = ((connect_ms / IBLUE_LED_CONNECT_BLINK_MS) % 2) ? 0 : IBLUE_LED_MAX_DUTY;
         }
         else if (bt_hci_get_inquiry()) {
-            /* Triangle "breathing" between 5% and 100% */
-            uint32_t ph = t % IBLUE_LED_BREATH_MS;
+            /* Triangle "breathing" between 5% and 100%. It starts at full brightness (where the solid LED
+             * was), goes down and comes back up, so it joins the solid LED without a jump. */
+            uint32_t ph = breath_t % IBLUE_LED_BREATH_MS;
             uint32_t half = IBLUE_LED_BREATH_MS / 2;
             uint32_t tri = (ph < half) ? ph : (IBLUE_LED_BREATH_MS - ph);
-            uint32_t lin = (tri * 1000) / half; /* 0..1000 */
+            uint32_t lin = 1000 - (tri * 1000) / half; /* 1000 at the start, 0 at the bottom */
             level = 50 + ((lin * lin / 1000) * (IBLUE_LED_MAX_DUTY - 50)) / 1000;
+            breathing = 1;
         }
         else {
             solid = 1;
@@ -156,6 +172,7 @@ static void iblue_led_task(void *arg) {
             shown = powf((float)level / (float)IBLUE_LED_MAX_DUTY, 1.0f / 2.2f);
         }
 
+        breath_t = breathing ? breath_t + IBLUE_LED_TICK_MS : 0;
         set_level(level);
         vTaskDelay(IBLUE_LED_TICK_MS / portTICK_PERIOD_MS);
         t += IBLUE_LED_TICK_MS;
@@ -225,6 +242,9 @@ void iblue_led_init(void) {
         .freq_hz = IBLUE_LED_FREQ_HZ,
         .clk_cfg = LEDC_AUTO_CLK,
     };
+    if (init_done) {
+        return;
+    }
     ledc_timer_config(&timer);
 
     apply_preset(load_color());
@@ -235,17 +255,27 @@ void iblue_led_init(void) {
             .speed_mode = IBLUE_LED_MODE,
             .channel = chans[i],
             .timer_sel = IBLUE_LED_TIMER,
-            .duty = 0,
+            /* the final level at once: the chip may have lit the LED while it starts, and it stays lit (the
+             * channel is not set up dark and then raised) */
+            .duty = (rgb[i] * (IBLUE_LED_MAX_DUTY * IBLUE_LED_CAP_PCT / 100)) / 255,
             .hpoint = 0,
             .flags.output_invert = 1, /* common anode: low = on */
         };
         ledc_channel_config(&ch);
     }
+    set_level(IBLUE_LED_MAX_DUTY); /* on fully now, before the task has run once */
     init_done = 1;
     printf("# %s: RGB LED on R:%d G:%d B:%d colour %ld\n", __FUNCTION__,
         pins[0], pins[1], pins[2], color_idx);
 
-    xTaskCreatePinnedToCore(iblue_led_task, "iblue_led", 2048, NULL, 4, NULL, 0);
+    /* Above wl_init_task (10): its file system, NVS and Bluetooth set-up keeps core 0 busy for seconds, and a
+     * LED task below it is not scheduled until that is over. This one sleeps most of the time. */
+    xTaskCreatePinnedToCore(iblue_led_task, "iblue_led", 2048, NULL, 12, NULL, 0);
+}
+
+void iblue_led_notice(uint32_t count) {
+    notice_total = count * 16;
+    notice_ticks = notice_total;
 }
 
 void iblue_led_connecting(uint32_t on) {

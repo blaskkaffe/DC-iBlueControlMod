@@ -36,6 +36,8 @@ void iblue_led_sweep_start(void);
 void iblue_led_sweep_stop(void);
 void iblue_led_get_rgb(uint8_t *out);
 uint32_t iblue_led_get_preset(void);
+/* The LED dips off `count` times (a short message: the game id switch uses 1 for on, 2 for off) */
+void iblue_led_notice(uint32_t count);
 /* Turn the LED off and latch the pins off for deep sleep */
 void iblue_led_sleep(void);
 

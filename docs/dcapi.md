@@ -2,7 +2,7 @@
 
 The adapter's end of the control language shared by the DC- projects. The design and the decisions are in the repository [DC-UnifiedEcosystem](https://github.com/blaskkaffe/DC-UnifiedEcosystem) (`docs/04-control-channel.md`); this page is what the firmware builds.
 
-**Status: written. The engine (`main/system/iblue_dcapi.c`) is host-tested (`sh main/tests/host/run.sh`, 82 checks, sanitizers on). The Maple and BLE glue and the Kconfig option are not built with ESP-IDF and nothing has run on an adapter or a console.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
+**Status: written. The engine (`main/iblue/iblue_dcapi.c`) is host-tested (`sh main/tests/host/run.sh`, 82 checks, sanitizers on). The Maple and BLE glue and the Kconfig option are not built with ESP-IDF and nothing has run on an adapter or a console.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
 
 ## What it answers
 
@@ -23,7 +23,7 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 
 `led.*`, `pair.*` of the design are not here yet; `port.<X>.layout`, `port.<X>.layouts` and `port.<X>.map.<OUTPUT>` are in (see below); the capability bits say what is: `api` (bit 0), `net` (bit 1), `port` (bit 3), `game` (bit 5) = `0x2B`. Bit 4 was `profile`: profiles are not part of BlueRetro and were removed, the bit is reserved.
 
-**How a change is applied:** the Maple interrupt cannot touch files or restart the wired side, so the engine only queues a message (`FB_TYPE_API_CFG`, three bytes, like the game id); `host.c` hands it to `iblue_dcapi_cfg_apply()` (`system/iblue_dcapi_cfg.c`) in the Bluetooth task, which writes `config.out_cfg[]`, and for a mode change asks the system manager for `SYS_MGR_CMD_WIRED_RST`. The answer to the `set` does not wait for that; the engine's own copy of the value changes at once so reading it back shows it.
+**How a change is applied:** the Maple interrupt cannot touch files or restart the wired side, so the engine only queues a message (`FB_TYPE_API_CFG`, three bytes, like the game id); `host.c` hands it to `iblue_dcapi_cfg_apply()` (`iblue/iblue_dcapi_cfg.c`) in the Bluetooth task, which writes `config.out_cfg[]`, and for a mode change asks the system manager for `SYS_MGR_CMD_WIRED_RST`. The answer to the `set` does not wait for that; the engine's own copy of the value changes at once so reading it back shows it.
 
 The ports are read from a snapshot (`iblue_dcapi_port_set()`) that `wired_port_hdl()` in `manager.c` refreshes whenever it maps Bluetooth controllers to ports, because the Maple interrupt that answers cannot call the Bluetooth code. So a change shows up when that function next runs.
 
@@ -46,7 +46,7 @@ One read answers at most 23 bytes, so the tunnel is chunked: write `0x51`, a fla
 
 ## Layouts and the mapping of an output (2026-11-05)
 
-`system/iblue_mapcfg.c` (portable, host-tested with 1032 checks) is the text form of BlueRetro's mapping table; the engine reads and queues changes, it never writes the configuration itself.
+`iblue/iblue_mapcfg.c` (portable, host-tested with 1032 checks) is the text form of BlueRetro's mapping table; the engine reads and queues changes, it never writes the configuration itself.
 
 | Key | Meaning |
 |---|---|

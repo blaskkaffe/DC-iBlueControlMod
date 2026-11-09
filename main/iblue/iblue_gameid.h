@@ -48,12 +48,18 @@ void iblue_gameid_set_wire(const uint8_t *wire);
 void iblue_gameid_ext_name(uint8_t *wire16);
 /* The id applied last, NUL terminated; "" = no game (read by the DC API; runs in the Maple interrupt too) */
 const char *iblue_gameid_current(void);
+/* On by default. Off: games announce themselves but no game configuration is loaded (and the normal one is back at once); on again:
+ * the game that runs gets its configuration. Kept over restarts by iblue_gameid_ctl.c. */
+int iblue_gameid_enabled(void);
+void iblue_gameid_set_enabled(int on);
 
 #else
 #define iblue_gameid_set(raw)
 #define iblue_gameid_set_wire(wire)
 #define iblue_gameid_ext_name(wire16)
 #define iblue_gameid_current() ""
+#define iblue_gameid_enabled() 0
+#define iblue_gameid_set_enabled(on)
 #endif
 
 #endif /* _IBLUE_GAMEID_H_ */

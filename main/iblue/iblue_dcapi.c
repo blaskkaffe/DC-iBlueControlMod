@@ -3,9 +3,9 @@
 
 #include <string.h>
 #include <esp_attr.h>
-#include "system/iblue_dcapi.h"
-#include "system/iblue_gameid.h"
-#include "system/iblue_mapcfg.h"
+#include "iblue/iblue_dcapi.h"
+#include "iblue/iblue_gameid.h"
+#include "iblue/iblue_mapcfg.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
 

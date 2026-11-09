@@ -3,22 +3,22 @@
 set -e
 d=$(cd "$(dirname "$0")" && pwd)
 out=$(mktemp -d)
-cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/anim" "$d/test_anim.c" "$d/../../system/iblue_anim_curve.c" -lm
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/anim" "$d/test_anim.c" "$d/../../iblue/iblue_anim_curve.c" -lm
 "$out/anim"
-cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/tap" "$d/test_tap.c" "$d/../../system/iblue_tap.c"
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/tap" "$d/test_tap.c" "$d/../../iblue/iblue_tap.c"
 "$out/tap"
 # the game id (Maple command 0x21), with a few stubs instead of ESP-IDF
-cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/gameid" "$d/test_gameid.c" "$d/../../system/iblue_gameid.c"
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/gameid" "$d/test_gameid.c" "$d/../../iblue/iblue_gameid.c"
 "$out/gameid"
 # the DC API engine (dc1), with the game id module and the same stubs
-cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/dcapi" "$d/test_dcapi.c" "$d/../../system/iblue_dcapi.c" "$d/../../system/iblue_gameid.c" "$d/../../system/iblue_mapcfg.c"
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/dcapi" "$d/test_dcapi.c" "$d/../../iblue/iblue_dcapi.c" "$d/../../iblue/iblue_gameid.c" "$d/../../iblue/iblue_mapcfg.c"
 "$out/dcapi"
 # the shared mapping text form and the layouts
-cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/mapcfg" "$d/test_mapcfg.c" "$d/../../system/iblue_mapcfg.c"
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/mapcfg" "$d/test_mapcfg.c" "$d/../../iblue/iblue_mapcfg.c"
 "$out/mapcfg"
 # ---- test engineer pass: properties, fuzz, engine behaviour, compatibility gap, names, known bugs (all of these pass today, except the known bugs)
 CFLAGS="-Wall -Wextra -Werror -fsanitize=address,undefined -I$d/stubs -I$d/../.."
-SYS="$d/../../system"
+SYS="$d/../../iblue"
 cc $CFLAGS -o "$out/props" "$d/test_props.c" "$SYS/iblue_mapcfg.c"
 "$out/props"
 cc $CFLAGS -o "$out/engine" "$d/test_engine.c" "$SYS/iblue_dcapi.c" "$SYS/iblue_gameid.c" "$SYS/iblue_mapcfg.c"
@@ -54,4 +54,6 @@ if [ "$STRICT" = 1 ] && [ "$repro" -gt 0 ]; then
     rm -rf "$out"
     exit 1
 fi
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/motion" "$d/test_motion.c" "$d/../../iblue/iblue_motion.c" -lm
+"$out/motion"
 rm -rf "$out"

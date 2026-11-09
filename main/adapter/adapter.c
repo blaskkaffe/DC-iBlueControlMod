@@ -23,8 +23,8 @@
 #include "macro.h"
 #include "bluetooth/host.h"
 #include "tests/cmds.h"
-#include "system/iblue_mapcfg.h"
-#include "system/iblue_dcapi.h"
+#include "iblue/iblue_mapcfg.h"
+#include "iblue/iblue_dcapi.h"
 
 const uint32_t hat_to_ld_btns[16] = {
     BIT(PAD_LD_UP), BIT(PAD_LD_UP) | BIT(PAD_LD_RIGHT), BIT(PAD_LD_RIGHT), BIT(PAD_LD_DOWN) | BIT(PAD_LD_RIGHT),

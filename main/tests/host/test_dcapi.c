@@ -1,9 +1,9 @@
-/* Host test of the DC API engine (system/iblue_dcapi.c, dc1): see run.sh */
+/* Host test of the DC API engine (iblue/iblue_dcapi.c, dc1): see run.sh */
 #include <stdio.h>
 #include <string.h>
 #include "adapter/adapter.h"
-#include "system/iblue_gameid.h"
-#include "system/iblue_dcapi.h"
+#include "iblue/iblue_gameid.h"
+#include "iblue/iblue_dcapi.h"
 
 static int fails, checks;
 #define CHECK(c) do { checks++; if (!(c)) { fails++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)

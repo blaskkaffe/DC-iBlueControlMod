@@ -2,7 +2,7 @@ name: Web config
 
 on:
   push:
-    branches: [main, claude/web-config]
+    branches: [main, claude/web-config, claude/integration]
     paths: ['web/**', '.github/workflows/web.yml']
   workflow_dispatch:
 

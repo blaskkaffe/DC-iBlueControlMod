@@ -2,7 +2,7 @@
 
 #include <string.h>
 #include <esp_attr.h>
-#include "system/iblue_mapcfg.h"
+#include "iblue/iblue_mapcfg.h"
 
 /* ---- names, in RAM (this code runs in the Maple interrupt as well) */
 

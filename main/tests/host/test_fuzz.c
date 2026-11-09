@@ -3,8 +3,8 @@
  * read or write outside it is reported. FUZZ_N = rounds (default 20000), FUZZ_SEED = seed. */
 #include "tcommon.h"
 #include "adapter/adapter.h"
-#include "system/iblue_gameid.h"
-#include "system/iblue_dcapi.h"
+#include "iblue/iblue_gameid.h"
+#include "iblue/iblue_dcapi.h"
 
 void adapter_q_fb(struct raw_fb *fb_data) { (void)fb_data; }
 static long nreq, nadd;

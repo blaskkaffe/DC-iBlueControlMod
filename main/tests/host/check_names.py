@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-check the names of main/system/iblue_mapcfg.c against two sources of truth, and print the tables.
+"""Cross-check the names of main/iblue/iblue_mapcfg.c against two sources of truth, and print the tables.
 
  1. web/utils/constants.js, btnList, the "Xbox One S / X|S" column: BlueRetro's generic button id -> the label of the Xbox controller.
     Every input name of iblue_mapcfg.c is compared with the label of its id.
@@ -27,7 +27,7 @@ ALIASES = ["a1_left", "a1_right", "a1_down", "a1_up", "a2_left", "a2_right", "a2
 with tempfile.TemporaryDirectory() as tmp:
     exe = os.path.join(tmp, "names_dump")
     subprocess.check_call([cc, "-Wall", "-Wextra", "-I" + os.path.join(here, "stubs"), "-I" + os.path.join(root, "main"), "-o", exe,
-                           os.path.join(here, "names_dump.c"), os.path.join(root, "main", "system", "iblue_mapcfg.c")])
+                           os.path.join(here, "names_dump.c"), os.path.join(root, "main", "iblue", "iblue_mapcfg.c")])
     dump = subprocess.check_output([exe] + ALIASES).decode().splitlines()
 in_names, outs, alias = {}, [], {}
 for ln in dump:

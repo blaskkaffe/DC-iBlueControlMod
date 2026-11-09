@@ -340,6 +340,8 @@ enum {
     DEV_PAD_ALT,
     DEV_KB,
     DEV_MOUSE,
+    DEV_RACING, /* Dreamcast: Racing Controller (steering, accelerator, brake) */
+    DEV_MARACAS, /* Dreamcast: Samba de Amigo maracas (docs/samba-de-amigo.md) */
 };
 
 /* Acc mode */
@@ -393,7 +395,7 @@ enum {
     FB_TYPE_MEM_WRITE,
     FB_TYPE_GAME_ID,
     FB_TYPE_SYS_ID,
-    FB_TYPE_API_CFG, /* the DC API changes the configuration: data[0] = IBLUE_CFG_*, data[1], data[2], data[3] (system/iblue_dcapi.h); travels in the DC API's own queues, not this one */
+    FB_TYPE_API_CFG, /* the DC API changes the configuration: data[0] = IBLUE_CFG_*, data[1], data[2], data[3] (iblue/iblue_dcapi.h); travels in the DC API's own queues, not this one */
 };
 
 enum {

@@ -427,6 +427,8 @@ export const devCfg = [
     'GamePadAlt',
     'Keyboard',
     'Mouse',
+    'Racing',
+    'Maracas',
 ];
 
 export const accCfg = [
@@ -515,8 +517,17 @@ export const maxThres = 100;
 export const cfg_cmd_get_iblue_info = 0x40;
 export const cfg_cmd_get_gestures = 0x41;
 export const cfg_cmd_set_gestures = 0x42;
+export const cfg_cmd_get_anim_cfg = 0x47;
+export const cfg_cmd_set_anim_cfg = 0x48;
+export const cfg_cmd_play_anim = 0x49;
+export const cfg_cmd_reset_anim_cfg = 0x4A;
+export const cfg_cmd_get_motion_cfg = 0x4B;
+export const cfg_cmd_set_motion_cfg = 0x4C;
+export const cfg_cmd_motion_pose = 0x4D;
+export const cfg_cmd_get_motion_status = 0x4E;
+export const cfg_cmd_reset_motion_cal = 0x4F;
 
-/* What a tap gesture can do: the numbers are what the firmware knows (system/iblue_gesture.h). */
+/* What a tap gesture can do: the numbers are what the firmware knows (iblue/iblue_gesture.h). */
 export const ibluGestureNames = ['Single tap', 'Double tap', 'Triple tap'];
 export const ibluActionNames = [
     'Nothing',
@@ -524,5 +535,6 @@ export const ibluActionNames = [
     'Stop searching',
     'Next LED colour (orange, blue, custom)',
     'Disconnect all controllers',
+    'Game id on / off (the LED dips once for on, twice for off)',
 ];
 export const ibluResult = ['OK', 'Not used', 'Bad request', 'Could not write it in the adapter'];

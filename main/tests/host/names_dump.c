@@ -2,7 +2,7 @@
  * argument "alias <text> <id>" (the source id the text parses to as a mapping input, or -1). */
 #include <stdio.h>
 #include <string.h>
-#include "system/iblue_mapcfg.h"
+#include "iblue/iblue_mapcfg.h"
 
 int main(int argc, char **argv) {
     for (uint32_t i = 0; i < IBM_PAD_IDS; i++) {

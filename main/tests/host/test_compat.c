@@ -5,7 +5,7 @@
  * XFAIL check flips and this test fails on purpose (then turn it into a normal test). See p2m_to_dc1.py for the converter proposal.
  * The Pico2Maple file format here is taken from the task description (not from DC-UnifiedEcosystem/docs/08-microsap.md, which could not be read). */
 #include "tcommon.h"
-#include "system/iblue_mapcfg.h"
+#include "iblue/iblue_mapcfg.h"
 
 static int xfail_seen, xfail_fixed;
 #define XFAIL(c, what) do { if (!(c)) { xfail_seen++; printf("  XFAIL (expected, gap): %s\n", what); } else { xfail_fixed++; printf("  XPASS: %s now works: make this a normal test\n", what); } } while (0)

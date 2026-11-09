@@ -8,6 +8,11 @@ const { chromium } = require('playwright');
 
 const site = path.resolve(process.argv[2] || '/tmp/site');
 let fails = 0, checks = 0;
+async function go(page, id) {
+    await page.click('#nav-' + id);
+    await page.waitForSelector('#p-' + id, { state: 'visible' });
+}
+
 function check(c, what) { checks++; if (!c) { fails++; console.log('FAIL: ' + what); } }
 
 function serve() {
@@ -58,6 +63,9 @@ async function setupGithub(page, opts) {
 
 async function open(browser, server, url, opts) {
     const consts = await import(path.join(site, 'utils/constants.js'));
+    const anim = await import(path.join(site, 'utils/ibluAnim.js'));
+    const mo = await import(path.join(site, 'utils/ibluMotion.js'));
+    opts = Object.assign({ motionDefaults: mo.ibluMotionDefaults(), motionMin: mo.ibluMotionFields.map((f) => f.min), motionMax: mo.ibluMotionFields.map((f) => f.max), animDefaults: anim.ibluAnimDefaults(), animMin: anim.ibluAnimFields.map((f) => f.min), animMax: anim.ibluAnimFields.map((f) => f.max) }, opts);
     const context = await browser.newContext();
     const page = await context.newPage();
     const errors = [];
@@ -76,34 +84,109 @@ async function open(browser, server, url, opts) {
     const browser = await chromium.launch();
     const iblue = { iblue: true, fwName: 'BlueRetro_dreamcast_iblue', fwVer: 'v25.10-beta-test' };
 
-    // ---- the iBlueControlMod page with an iBlueControlMod firmware
+    // ---- the app with an iBlueControlMod firmware: one connection, all categories
     {
-        const { page, errors } = await open(browser, server, 'iblue.html', iblue);
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        check((await page.$$('#nav > a')).length === 7, 'seven categories in the menu');
+        check(await page.isVisible('#p-device .gate'), 'before connecting, a prompt to connect');
         await page.click('#btConn');
-        await page.waitForSelector('#divGestures', { state: 'visible' });
-        const info = await page.textContent('#divInfo');
-        check(/iBlueControlMod features: tap buttons, game id/.test(info), 'info line shows the features: ' + info);
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        const info = await page.textContent('#deviceInfo');
+        check(/tap buttons, LED settings, game id, Joy-Con motion/.test(info), 'the device card shows the features: ' + info);
+        check(await page.evaluate(() => window.__requests) === 1, 'one request for a device');
+        await go(page, 'buttons');
+        await page.waitForSelector('#gesture0', { state: 'visible' });
         check(await page.inputValue('#gesture0') === '0' && await page.inputValue('#gesture1') === '3' && await page.inputValue('#gesture2') === '0',
             'defaults: single tap nothing, double tap next colour, triple tap nothing');
-        check((await page.$$('#gesture0 option')).length === 5, 'five actions to choose from');
-        await page.selectOption('#gesture2', '4');
+        check((await page.$$('#gesture0 option')).length === 6, 'six actions to choose from');
+        await page.selectOption('#gesture2', '5');
         await page.selectOption('#gesture0', '1');
         await page.click('#btnGestureSave');
         await page.waitForFunction(() => document.getElementById('gestureStatus').textContent === 'Saved.');
-        check(JSON.stringify(await page.evaluate(() => window.__br.gestures)) === '[1,3,4]', 'the firmware got the new tap actions');
+        check(JSON.stringify(await page.evaluate(() => window.__br.gestures)) === '[1,3,5]', 'the firmware got the new tap actions');
 
-        check(await page.isHidden('#divInfo') === false && !/rofile/.test(await page.content()), 'no profile section on the page');
         check(errors.length === 0, 'no script errors on the iBlue page: ' + errors.join('; '));
         await page.context().close();
     }
 
+    // ---- port LEDs and the boot animation settings
+    {
+        const anim = await import(path.join(site, 'utils/ibluAnim.js'));
+        const fields = anim.ibluAnimFields;
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        await page.click('#btConn');
+        await go(page, 'leds');
+        await page.waitForSelector('#led_ctrl_pct', { state: 'visible' });
+        check((await page.$$('#p-leds input[type=range]')).length === fields.length, 'a slider for each of the ' + fields.length + ' settings');
+        check(await page.inputValue('#led_ctrl_pct_n') === '20' && await page.inputValue('#led_total_s_n') === '15', 'the defaults of the adapter are shown: controller LED 20 %, 15 s');
+        const painted = await page.evaluate(() => {
+            const px = (id) => { const c = document.getElementById(id); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) { if (d[i] > 0) { n++; } } return n; };
+            return [px('ledTank'), px('ledCurve')];
+        });
+        check(painted[0] > 1000 && painted[1] > 500, 'the tank and the water level curve are drawn');
+        // a change on a slider redraws the preview
+        await page.fill('#led_tank_len_n', '800');
+        await page.dispatchEvent('#led_tank_len_n', 'input');
+        check(await page.inputValue('#led_tank_len') === '800', 'the number box moves the slider');
+        await page.fill('#led_ctrl_pct_n', '10');
+        await page.dispatchEvent('#led_ctrl_pct_n', 'input');
+        await page.fill('#led_group_pos_n', '-120');
+        await page.dispatchEvent('#led_group_pos_n', 'input');
+        await page.fill('#led_depth_n', '5000'); // out of range: the adapter clamps it
+        await page.dispatchEvent('#led_depth_n', 'input');
+        await page.click('#btnLedSave');
+        await page.waitForFunction(() => /Playing/.test(document.getElementById('ledStatus').textContent));
+        const sent = await page.evaluate(() => ({ anim: window.__br.anim, played: window.__br.played }));
+        const idx = (k) => fields.findIndex((f) => f.key === k);
+        check(sent.anim[idx('tank_len')] === 800 && sent.anim[idx('ctrl_pct')] === 10 && sent.anim[idx('group_pos')] === -120, 'the new numbers reached the adapter (negative number too)');
+        check(sent.anim[idx('depth')] === fields[idx('depth')].max, 'out of range is clamped');
+        check(sent.played === 1, 'save and play plays the animation');
+        check(await page.inputValue('#led_depth_n') === String(fields[idx('depth')].max), 'the page shows what the adapter kept');
+        await page.click('#btnLedDefaults');
+        await page.waitForFunction(() => /defaults/.test(document.getElementById('ledStatus').textContent));
+        check((await page.evaluate(() => window.__br.anim)).join() === anim.ibluAnimDefaults().join(), 'defaults restore every setting');
+        check(await page.inputValue('#led_tank_len_n') === '400', 'and the page shows them');
+        check(errors.length === 0, 'no script errors with the LED settings: ' + errors.join('; '));
+        await page.context().close();
+    }
+    {   // the motion table of the page is the one of the firmware
+        const mo = await import(path.join(site, 'utils/ibluMotion.js'));
+        const cands = [path.join(__dirname, '../../main/iblue/iblue_motion.c'), '/home/user/iBlueControlMod/main/iblue/iblue_motion.c'];
+        const src = cands.find((f) => fs.existsSync(f));
+        if (src) {
+            const text = fs.readFileSync(src, 'utf8');
+            const grab = (name) => text.match(new RegExp(name + '\\s*=\\s*\\{([^}]*)\\}'))[1].split(',').map((x) => parseInt(x.trim(), 10));
+            check(grab('iblue_motion_cfg_default').join() === mo.ibluMotionDefaults().join(), 'motion defaults equal the firmware');
+            check(grab('iblue_motion_cfg_min').join() === mo.ibluMotionFields.map((f) => f.min).join(), 'motion minimums equal the firmware');
+            check(grab('iblue_motion_cfg_max').join() === mo.ibluMotionFields.map((f) => f.max).join(), 'motion maximums equal the firmware');
+        }
+    }
+    {   // the table of the page is the table of the firmware, when its source is at hand
+        const anim = await import(path.join(site, 'utils/ibluAnim.js'));
+        const cands = [process.env.IBLUE_C_SRC, path.join(__dirname, '../../main/iblue/iblue_anim_curve.c'), '/home/user/iBlueControlMod/main/iblue/iblue_anim_curve.c'].filter(Boolean);
+        const src = cands.find((f) => fs.existsSync(f) && /iblue_anim_cfg_default/.test(fs.readFileSync(f, 'utf8')));
+        if (!src) {
+            console.log('(firmware source not found: table check skipped)');
+        }
+        else {
+            const text = fs.readFileSync(src, 'utf8');
+            const grab = (name) => text.match(new RegExp(name + '\\s*=\\s*\\{([^}]*)\\}'))[1].split(',').map((x) => parseInt(x.trim(), 10));
+            check(grab('iblue_anim_cfg_default').join() === anim.ibluAnimDefaults().join(), 'defaults of the page equal the firmware: ' + grab('iblue_anim_cfg_default'));
+            check(grab('iblue_anim_cfg_min').join() === anim.ibluAnimFields.map((f) => f.min).join(), 'minimums equal the firmware');
+            check(grab('iblue_anim_cfg_max').join() === anim.ibluAnimFields.map((f) => f.max).join(), 'maximums equal the firmware');
+        }
+    }
+
     // ---- the same page with some other BlueRetro firmware
     {
-        const { page, errors } = await open(browser, server, 'iblue.html', { iblue: false, fwName: 'BlueRetro_hw1_dreamcast', fwVer: 'v25.10' });
+        const { page, errors } = await open(browser, server, 'index.html', { iblue: false, fwName: 'BlueRetro_hw1_dreamcast', fwVer: 'v25.10' });
         await page.click('#btConn');
-        await page.waitForSelector('#divInfo', { state: 'visible' });
-        await page.waitForFunction(() => /does not have/.test(document.getElementById('divInfo').textContent));
-        check(await page.isHidden('#divGestures'), 'no iBlue sections for another firmware');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        await go(page, 'buttons');
+        check(await page.isVisible('#p-buttons .nope') && await page.isHidden('#gesture0'), 'another firmware: a note instead of the iBlue settings');
+        await go(page, 'controllers');
+        check(await page.isVisible('#dcPreset0'), 'the controller presets still work on another firmware');
+        check(/none/.test(await page.textContent('#deviceInfo')), 'the device card says it has no iBlue features');
         check(errors.length === 0, 'no script errors with another firmware: ' + errors.join('; '));
         await page.context().close();
     }
@@ -153,8 +236,127 @@ async function open(browser, server, url, opts) {
     }
     {   // the list still shows when one source is missing: only main has files here (the others answer 404)
         const { page } = await open(browser, server, 'index.html', iblue);
-        const text = await page.textContent('body');
-        check(/iblue\.html/.test(await page.content()) && /tap buttons/.test(text), 'the index links to the iBlueControlMod page');
+        await page.click('#btConn');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        for (const id of ['device', 'leds', 'buttons', 'controllers', 'games', 'update', 'advanced']) {
+            await go(page, id);
+            check(await page.isVisible('#p-' + id), 'category ' + id + ' opens');
+        }
+        await page.context().close();
+    }
+
+    // ---- Dreamcast only setting (on by default), in the device category
+    for (const off of [false, true]) {
+        const { page } = await open(browser, server, 'index.html', iblue);
+        if (off) { await page.evaluate(() => localStorage.setItem('iblueDcOnly', '0')); await page.reload(); }
+        await page.click('#btConn');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        await go(page, 'advanced');
+        const hidden = await page.isHidden('#tab-advanced-4');
+        check(hidden === !off, 'N64 tab ' + (off ? 'shown' : 'hidden') + ' when Dreamcast only is ' + (off ? 'off' : 'on'));
+        await go(page, 'device');
+        check(await page.isChecked('#dcOnly') === !off, 'the checkbox shows the setting');
+        if (!off) {
+            await page.uncheck('#dcOnly');
+            check(await page.evaluate(() => localStorage.getItem('iblueDcOnly')) === '0', 'unchecking keeps the setting');
+            await go(page, 'advanced');
+            check(await page.isVisible('#tab-advanced-4'), 'and shows the other consoles again');
+        }
+        await page.context().close();
+    }
+    for (const off of [false, true]) {
+        const { page, errors } = await open(browser, server, 'advance.html', iblue);
+        if (off) { await page.evaluate(() => localStorage.setItem('iblueDcOnly', '0')); await page.reload(); }
+        await page.click('#btConn');
+        await page.waitForSelector('#systemCfg', { state: 'attached' });
+        const sys = await page.$$eval('#systemCfg option', (o) => o.map((x) => x.text));
+        const dst = await page.$$eval('#dstLabel option', (o) => o.map((x) => x.text));
+        check(off ? sys.length > 10 && dst.length > 10 : (sys.join() === 'Auto,DC' && dst.join() === 'Default,Dreamcast'),
+            'advance page system / destination lists with Dreamcast only ' + (off ? 'off' : 'on') + ': ' + sys.length + ' / ' + dst.length);
+        await page.context().close();
+    }
+
+    // ---- Dreamcast controller presets
+    {
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        await page.click('#btConn');
+        await go(page, 'controllers');
+        await page.waitForSelector('#dcPreset0', { state: 'visible' });
+        check((await page.$$('#dcPresetRows button')).length === 7, 'seven presets');
+        await page.selectOption('#dcOutput', '1');
+        await page.click('#dcPreset2'); // racing
+        await page.waitForFunction(() => /is set on output 2/.test(document.getElementById('dcPresetStatus').textContent));
+        const w = await page.evaluate(() => window.__br.writes);
+        check(w.some((x) => x[0] === 3 && x[1][0] === 4 && x[1][1] === 3), 'racing mode (4) and rumble + memory written as the output data');
+        check(w.some((x) => x[0] === 2 && x[1][0] === 1), 'output 2 selected first');
+        check(w.some((x) => x[0] === 4 || x[0] === 5), 'the default mapping was written');
+        await page.evaluate(() => { window.__br.writes.length = 0; });
+        await page.click('#dcPreset5'); // keyboard: mode only
+        await page.waitForFunction(() => /Keyboard/.test(document.getElementById('dcPresetStatus').textContent));
+        const w2 = await page.evaluate(() => window.__br.writes);
+        check(w2.every((x) => x[0] === 2 || x[0] === 3) && w2.some((x) => x[0] === 3 && x[1][0] === 2), 'keyboard: only the output mode is written');
+        await page.evaluate(() => { window.__br.writes.length = 0; });
+        await page.click('#dcPreset3'); // maracas
+        await page.waitForFunction(() => /Samba de Amigo maracas is set/.test(document.getElementById('dcPresetStatus').textContent));
+        const w3 = await page.evaluate(() => window.__br.writes);
+        check(w3.some((x) => x[0] === 3 && x[1][0] === 5 && x[1][1] === 3), 'maracas mode (5) written with rumble and memory');
+        check(w3.some((x) => x[0] === 4 || x[0] === 5), 'the maracas mapping was written');
+        // the Joy-Con motion preset: two inputs, the right Joy-Con into the first output
+        await page.evaluate(() => { window.__br.writes.length = 0; });
+        await page.selectOption('#dcOutput', '0');
+        await page.click('#dcPreset4');
+        await page.waitForFunction(() => /Joy-Con motion\) is set/.test(document.getElementById('dcPresetStatus').textContent));
+        const w4 = await page.evaluate(() => window.__br.writes);
+        check(w4.some((x) => x[0] === 3 && x[1][0] === 5), 'motion preset: maracas mode written');
+        const inputs = w4.filter((x) => x[0] === 4 || x[0] === 5);
+        check(inputs.length >= 2, 'motion preset: two inputs were written');
+        // motion settings and the calibration poses
+        check(await page.isVisible('#motionCards'), 'the Joy-Con motion cards are shown');
+        check(await page.isChecked('#mo_mode') === false, 'motion mode is off by default');
+        await page.check('#mo_mode');
+        await page.fill('#mo_shake_mg_n', '9999'); // beyond the range: the firmware clamps
+        await page.click('#btnMoSave');
+        await page.waitForFunction(() => /Saved/.test(document.getElementById('moStatus').textContent));
+        const mcfg = await page.evaluate(() => window.__br.motion);
+        check(mcfg[0] === 1 && mcfg[4] === 4000, 'motion settings saved and clamped: ' + mcfg);
+        await page.click('#btnMoDefaults');
+        check(await page.inputValue('#mo_shake_mg_n') === '1200' && !(await page.isChecked('#mo_mode')), 'defaults put the form back');
+        await page.click('#moPose1');
+        await page.waitForFunction(() => window.__br.poses.length === 1);
+        check(JSON.stringify(await page.evaluate(() => window.__br.poses[0])) === '[1,5]', 'the up pose was asked for with 5 s delay');
+        await page.waitForFunction(() => /Left Joy-Con: height 17/.test(document.getElementById('moLive').textContent), null, { timeout: 8000 });
+        const liveText = await page.textContent('#moLive');
+        check(/Right Joy-Con.*SHAKE/.test(liveText) && /X 138 Y 148/.test(liveText), 'live view shows both Joy-Cons: ' + liveText);
+        await page.click('#btnMoForget');
+        await page.waitForFunction(() => window.__br.motionReset === 1);
+        await go(page, 'games');
+        await page.waitForFunction(() => /No game announced/.test(document.getElementById('dcGameText').textContent));
+        check(await page.isDisabled('#btnDcGameSave'), 'no game id, nothing to save for a game');
+        check(errors.length === 0, 'no script errors on the Dreamcast presets page: ' + errors.join('; '));
+        await page.context().close();
+    }
+
+    // ---- one connection for the BlueRetro pages shown inside the app
+    {
+        const { page, errors } = await open(browser, server, 'index.html', iblue);
+        await page.click('#btConn');
+        await page.waitForFunction(() => document.getElementById('connChip').classList.contains('ok'));
+        await go(page, 'advanced');
+        await page.waitForSelector('#frame-advanced-0');
+        const frame = page.frames().find((f) => f.url().includes('advance.html'));
+        check(!!frame, 'the mapping page opened inside the app');
+        await frame.waitForSelector('#systemCfg', { state: 'attached' });
+        check(await frame.evaluate(() => window.__requests || 0) === 0, 'the page inside did not ask for a device of its own');
+        check(await page.evaluate(() => window.__requests) === 1, 'still the one request of the app');
+        await page.click('#tab-advanced-2'); // files
+        await page.waitForSelector('#frame-advanced-2');
+        check(page.frames().some((f) => f.url().includes('files.html')), 'a second tool opens on the same connection');
+        await go(page, 'update');
+        await page.waitForSelector('#frame-update-0');
+        const ota = page.frames().find((f) => f.url().includes('ota.html'));
+        await ota.waitForFunction(() => document.querySelectorAll('#fwGithub option').length > 1 || /No firmware|Could not/.test(document.getElementById('fwGithub').textContent), null, { timeout: 15000 });
+        check(await page.evaluate(() => window.__requests) === 1, 'the update page used the same connection');
+        check(errors.length === 0, 'no script errors in the app: ' + errors.join('; '));
         await page.context().close();
     }
 

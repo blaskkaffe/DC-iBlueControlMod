@@ -1,7 +1,7 @@
-/* Host test of the shared mapping text form (system/iblue_mapcfg.c): see run.sh */
+/* Host test of the shared mapping text form (iblue/iblue_mapcfg.c): see run.sh */
 #include <stdio.h>
 #include <string.h>
-#include "system/iblue_mapcfg.h"
+#include "iblue/iblue_mapcfg.h"
 
 static int fails, checks;
 #define CHECK(c) do { checks++; if (!(c)) { fails++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)

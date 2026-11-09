@@ -29,11 +29,17 @@
 #include "bare_metal_app_cpu.h"
 #include "manager.h"
 #include "esp_timer.h"
-#include "system/iblue_led.h"
-#include "system/iblue_port_led.h"
-#include "system/iblue_gesture.h"
-#include "system/iblue_tap.h"
-#include "system/iblue_dcapi.h"
+#include <nvs_flash.h>
+#include <esp_timer.h>
+#include "iblue/iblue_led.h"
+#include "iblue/iblue_anim_cfg.h"
+#include "iblue/iblue_port_led.h"
+#include "iblue/iblue_gesture.h"
+#include "iblue/iblue_gameid_ctl.h"
+#include "iblue/iblue_motion_ctl.h"
+#include "iblue/iblue_tap.h"
+#include "iblue/iblue_dcapi.h"
+#include "iblue/iblue_mapcfg.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*
@@ -837,6 +843,30 @@ void sys_mgr_cmd(uint8_t cmd) {
     }
 }
 
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+/* First thing the firmware does: take over the LEDs, so the port LEDs and the power LED do not sit in
+ * whatever state the pins power up in while the file system, Bluetooth and the rest start (that took
+ * seconds). The port LEDs belong to the boot animation from here on; the power LED shows its colour.
+ * Assumes four ports (the Dreamcast build). Needs NVS for the saved colour. */
+void sys_mgr_iblue_early(void) {
+    int32_t ret;
+
+    /* The port LEDs first (they need nothing else): B, C and D go off, A stays lit until the animation starts. */
+    iblue_port_led_init(led_list, sizeof(led_list));
+    /* The settings of the animation and the saved colour of the power LED are in NVS */
+    ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase();
+        nvs_flash_init();
+    }
+    iblue_anim_cfg_init();
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_ANIM
+    iblue_port_led_boot_anim((uint32_t)(esp_timer_get_time() / 1000) + CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS);
+#endif
+    iblue_led_init();
+}
+#endif
+
 void sys_mgr_init(uint32_t package) {
     gpio_config_t io_conf = {0};
 
@@ -868,6 +898,9 @@ void sys_mgr_init(uint32_t package) {
     };
     ledc_timer_config(&ledc_timer);
     ledc_channel_config(&ledc_channel);
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    iblue_port_led_reclaim(); /* the channel setup above routed port A's pin to the 2 Hz flash */
+#endif
 
     while (wired_adapter.system_id <= WIRED_AUTO) {
         boot_btn_hdl();
@@ -972,14 +1005,20 @@ void sys_mgr_init(uint32_t package) {
         io_conf.pin_bit_mask = 1ULL << led_list[i];
         gpio_config(&io_conf);
 
+#ifndef CONFIG_BLUERETRO_IBLUE_RGB_LED /* the port LED PWM channels own these pins already */
         if (i < hw_config.port_cnt) {
             /* Can't use GPIO mode on port LED as some wired driver overwrite whole GPIO port */
             /* Use unused LEDC channel 2 to force output low */
             esp_rom_gpio_connect_out_signal(led_list[i], ledc_periph_signal[LEDC_LOW_SPEED_MODE].sig_out0_idx + LEDC_CHANNEL_2, 0, 0);
         }
+#endif
     }
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
     iblue_port_led_init(led_list, hw_config.port_cnt);
+    /* gpio_config() above made every port LED pin a plain GPIO output, which disconnects it from its PWM
+     * channel: the intro stopped there (after A and B) and the pins stayed dark until the old start-up path
+     * attached them again. Give them back. */
+    iblue_port_led_reclaim();
 #endif
 
 #ifdef CONFIG_BLUERETRO_HW2
@@ -1033,6 +1072,8 @@ void sys_mgr_init(uint32_t package) {
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
     iblue_led_init();
     iblue_gesture_init();
+    iblue_gameid_ctl_init();
+    iblue_motion_ctl_init();
 #endif
 
     /* If boot switch pressed at boot, trigger system on and goes to deep sleep */

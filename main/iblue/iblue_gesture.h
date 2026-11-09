@@ -29,6 +29,7 @@ enum {
     IBLUE_ACT_STOP_PAIRING,  /* stop searching */
     IBLUE_ACT_NEXT_COLOUR,   /* orange, blue, custom */
     IBLUE_ACT_DISCONNECT,    /* disconnect all controllers */
+    IBLUE_ACT_TOGGLE_GAMEID, /* game id on / off (the LED dips once for on, twice for off) */
     IBLUE_ACT_MAX,
 };
 

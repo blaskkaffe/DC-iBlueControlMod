@@ -1,6 +1,6 @@
 /* Host test of the tap counting: see run.sh */
 #include <stdio.h>
-#include "../../system/iblue_tap.h"
+#include "../../iblue/iblue_tap.h"
 
 static int fails, checks;
 #define CHECK(c) do { checks++; if (!(c)) { fails++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)

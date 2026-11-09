@@ -7,8 +7,9 @@
 #include "driver/ledc.h"
 #include "esp_rom_gpio.h"
 #include "hal/ledc_hal.h"
-#include "system/iblue_anim_curve.h"
-#include "system/iblue_port_led.h"
+#include "iblue/iblue_anim_curve.h"
+#include "iblue/iblue_anim_cfg.h"
+#include "iblue/iblue_port_led.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 
@@ -19,13 +20,13 @@
 #define FRAME_MS 20
 #define MAX_DUTY 1023
 #define GAMMA 2.2f
-#define CAP ((float)CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100.0f)
+#define HOLD_DUTY (MAX_DUTY * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100) /* A while the animation is not started yet */
+#define HOLD_MAX_US 500000 /* ... but not longer than this */
 /* Per frame, how much of the way to the goal the level goes: 1 - exp(-20 ms / 80 ms) up (95 % after
  * 0.24 s), slower down. The level is what the eye sees, the duty is that to the power 2.2. */
 #define STEP_UP 0.22f
 #define STEP_DOWN 0.12f
 #define ANIM_MIN_LEFT_MS 400 /* not worth starting for less */
-#define ANIM_FADE_IN_MS 150  /* when starting in the middle of it, do not pop on */
 
 static uint8_t led_pin[IBLUE_ANIM_LEDS];
 static uint32_t led_count;
@@ -33,7 +34,11 @@ static volatile bool want_on[IBLUE_ANIM_LEDS];
 static float level[IBLUE_ANIM_LEDS];
 static volatile bool anim_active;
 static volatile int64_t anim_t0_us;
-static volatile uint32_t anim_start_ms;
+static volatile uint32_t anim_run_ms;    /* how long the whole animation (intro and drops) runs from its start */
+static volatile uint32_t anim_drops_ms;  /* ... of which the drops get this */
+static volatile bool hold;
+static volatile int64_t hold_until_us;
+static volatile uint32_t intro_ms; /* length of the intro of the running animation, 0 = none */
 static bool inited;
 
 static void attach(uint32_t i) {
@@ -48,26 +53,41 @@ static void put(uint32_t i, uint32_t duty) {
 static void port_led_task(void *arg) {
     (void)arg;
     while (1) {
-        const uint32_t total = CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_MS;
+        float cap = (float)iblue_anim_get_cfg()->ctrl_pct / 100.0f; /* brightness of a connected controller */
 
+        if (hold) {
+            /* A is lit by the chip while it starts and stays lit until the animation (or a timeout) takes over */
+            if (esp_timer_get_time() > hold_until_us) {
+                hold = false;
+            }
+            else {
+                for (uint32_t i = 0; i < led_count; i++) {
+                    put(i, i == 0 ? HOLD_DUTY : 0);
+                }
+                vTaskDelay(FRAME_MS / portTICK_PERIOD_MS);
+                continue;
+            }
+        }
         if (anim_active) {
             uint32_t run = (uint32_t)((esp_timer_get_time() - anim_t0_us) / 1000);
-            uint32_t elapsed = anim_start_ms + run;
+            uint32_t intro = intro_ms;
 
-            if (elapsed >= total) {
+            if (run >= anim_run_ms) {
                 anim_active = false; /* the real state takes over below, from dark */
                 for (uint32_t i = 0; i < led_count; i++) {
                     level[i] = 0.0f;
                 }
             }
-            else {
+            else if (run < intro) {
+                /* the fireworks, then the drops */
                 for (uint32_t i = 0; i < led_count; i++) {
-                    uint32_t duty = iblue_anim_duty(elapsed, total, (int)i);
-
-                    if (run < ANIM_FADE_IN_MS) {
-                        duty = duty * run / ANIM_FADE_IN_MS;
-                    }
-                    put(i, duty * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100);
+                    put(i, iblue_anim_intro_duty(run, (int)i) * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100);
+                }
+            }
+            else {
+                /* the drops have an animation of their own: it starts when the intro is over and ends with the whole */
+                for (uint32_t i = 0; i < led_count; i++) {
+                    put(i, iblue_anim_duty(run - intro, anim_drops_ms, (int)i) * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100);
                 }
             }
         }
@@ -79,7 +99,7 @@ static void port_led_task(void *arg) {
                 if (fabsf(goal - level[i]) < 0.004f) {
                     level[i] = goal;
                 }
-                put(i, (uint32_t)(powf(level[i], GAMMA) * CAP * (float)MAX_DUTY + 0.5f));
+                put(i, (uint32_t)(powf(level[i], GAMMA) * cap * (float)MAX_DUTY + 0.5f));
             }
         }
         vTaskDelay(FRAME_MS / portTICK_PERIOD_MS);
@@ -109,7 +129,12 @@ void iblue_port_led_init(const uint8_t *pins, uint32_t count) {
             .speed_mode = MODE,
             .channel = FIRST_CHANNEL + i,
             .timer_sel = TIMER,
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO
+            /* A is lit by the chip while it starts and the intro begins with A lit: keep it on, no dip */
+            .duty = (i == 0) ? (MAX_DUTY * CONFIG_BLUERETRO_IBLUE_LED_MAX_PCT / 100) : 0,
+#else
             .duty = 0,
+#endif
             .hpoint = 0,
         };
 
@@ -117,7 +142,14 @@ void iblue_port_led_init(const uint8_t *pins, uint32_t count) {
         ledc_channel_config(&ch);
     }
     inited = true;
-    xTaskCreatePinnedToCore(port_led_task, "iblue_port_led", 2048, NULL, 4, NULL, 0);
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO
+    /* A stays lit (the chip lit it) until the animation starts, a moment from now */
+    hold_until_us = esp_timer_get_time() + HOLD_MAX_US;
+    hold = true;
+#endif
+    /* Above wl_init_task (10), which keeps core 0 busy for seconds while it starts: below it this task would
+     * not run until that is over and the intro and the first part of the drops would be skipped. */
+    xTaskCreatePinnedToCore(port_led_task, "iblue_port_led", 2048, NULL, 12, NULL, 0);
 }
 
 void iblue_port_led_set(uint32_t index, bool on) {
@@ -129,15 +161,37 @@ void iblue_port_led_set(uint32_t index, bool on) {
 }
 
 void iblue_port_led_boot_anim(uint32_t elapsed_ms) {
-    if (!inited || anim_active || elapsed_ms + ANIM_MIN_LEFT_MS >= CONFIG_BLUERETRO_IBLUE_BOOT_ANIM_MS) {
+    uint32_t total = (uint32_t)iblue_anim_get_cfg()->total_s * 1000u;
+    uint32_t remain;
+
+    hold = false;
+    if (!inited || anim_active || elapsed_ms + ANIM_MIN_LEFT_MS >= total) {
         return;
     }
+    remain = total - elapsed_ms; /* the animation ends `total` after the console's power-on */
     for (uint32_t i = 0; i < led_count; i++) {
         attach(i);
     }
-    anim_start_ms = elapsed_ms;
+#ifdef CONFIG_BLUERETRO_IBLUE_BOOT_INTRO
+    /* the intro only when the drops still get a good time after it */
+    intro_ms = (remain > IBLUE_ANIM_INTRO_MS + 2000) ? IBLUE_ANIM_INTRO_MS : 0;
+#else
+    intro_ms = 0;
+#endif
+    anim_run_ms = remain;
+    anim_drops_ms = remain - intro_ms;
     anim_t0_us = esp_timer_get_time();
     anim_active = true;
+}
+
+void iblue_port_led_play(void) {
+    iblue_port_led_boot_anim(0); /* from the start, to see the settings */
+}
+
+void iblue_port_led_reclaim(void) {
+    for (uint32_t i = 0; inited && i < led_count; i++) {
+        attach(i);
+    }
 }
 
 bool iblue_port_led_busy(void) {
