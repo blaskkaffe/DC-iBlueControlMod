@@ -2,6 +2,16 @@
 
 Newest first. "Done" is what actually happened; "To do" is what is still open.
 
+## 2026-11-09: first ESP-IDF build of `unified`; Samba de Amigo ported; DreamDash port status on 0x50
+
+**Done**
+- DC-iBlueControlMod `unified` built with ESP-IDF 030c995 for the first time. It did not link (IRAM 4.6 KB over: the DC API runs in the Maple interrupt); the iBlue build now leaves out the other systems' wired drivers. The game id check in the interrupt read a flash constant (now RAM). Test image in `firmware/test/`, boots in the ESP32 emulator.
+- `claude/integration` merged into `unified` (web config redesign, Racing and Maracas output modes, Joy-Con motion IB-10 / IB-11 with BLE 0x4B-0x4F and feature bit 4, LED boot animation, firmware under `main/iblue/`). Its first compile failed: the Joy-Con motion code added a second `SET_REP_MODE` case next to BlueRetro's own (duplicate case value); fixed in 517de0d (one case per build). The DC API now also knows the modes `racing` and `maracas`; one unused-variable warning in `led.c` fixed.
+- DC-DreamDash `unified`: the iBlue module from `claude/iblue-ports` with port status on `0x50` / feature bit `0x20` (T-2 / C-1 settled in both repos).
+
+**Limits**
+- Nothing of this has run on an adapter, a console or with Samba de Amigo. The hosted web config publishes from `main`, so the new page sections are not online until `unified` is published.
+
 ## 2026-11-03 (late night, 5): the iBlue game id now follows Maple 0x21
 
 **Done**

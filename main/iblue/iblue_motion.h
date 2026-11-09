@@ -34,7 +34,7 @@ struct iblue_motion_cfg {
     int16_t x_invert;    /* 1: turn the sideways position around */
     int16_t yaw_leak;    /* the heading drifts back to forward at this rate, hundredths of a degree-fraction per second (0 = never) */
     int16_t filter_ms;   /* smoothing of X and Y, ms */
-    int16_t cal_button;  /* 1: Home (right Joy-Con) or Capture (left) held for a second calibrates forward for all */
+    int16_t cal_button;  /* 1: Minus (left Joy-Con) or Home (right) held for a second calibrates forward for all */
 };
 #define IBLUE_MOTION_CFG_FIELDS 12
 

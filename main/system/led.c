@@ -81,6 +81,8 @@ void err_led_init(uint32_t package) {
     ledc_timer_config(&ledc_timer);
 #ifndef CONFIG_BLUERETRO_IBLUE_RGB_LED
     ledc_channel_config(&ledc_channel);
+#else
+    (void)ledc_channel;
 #endif
     /* (On the iBlueControlMod the error LED channel is not set up: GPIO14 is the green of the RGB LED and the
      * channel would take the pin from the chip's state, changing the colour, until iblue_led takes over.) */

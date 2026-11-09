@@ -2,7 +2,7 @@
 
 The adapter's end of the control language shared by the DC- projects. The design and the decisions are in the repository [DC-UnifiedEcosystem](https://github.com/blaskkaffe/DC-UnifiedEcosystem) (`docs/04-control-channel.md`); this page is what the firmware builds.
 
-**Status: written. The engine (`main/iblue/iblue_dcapi.c`) is host-tested (`sh main/tests/host/run.sh`, 82 checks, sanitizers on). The Maple and BLE glue and the Kconfig option are not built with ESP-IDF and nothing has run on an adapter or a console.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
+**Status: built with ESP-IDF (2026-11-09, test image in `firmware/test/`), engine host-tested (`sh main/tests/host/run.sh`, sanitizers on). Nothing has run on an adapter or a console yet.** Option: `CONFIG_BLUERETRO_IBLUE_DCAPI` (default on; needs the game id option).
 
 ## What it answers
 
@@ -14,9 +14,9 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 | `game.id` | read only: the game id from openMenu (Maple `0x21`); `err game.id unavailable no game` when none |
 | `net.selected` | `dcnow` or `dcnet`; `set` by the Pi (over BLE) or openMenu (over Maple), read back; not stored; `err ... unavailable not set` until someone sets it. Nothing in the firmware uses it yet (the LED colour by network, IB-P2, will) |
 | `port.<A-D>.state` | `empty`, `bt` (a Bluetooth controller with finished HID setup is mapped to the port) or `wired` (the port's sense input says something is plugged in; a physical controller wins over a Bluetooth one). The adapter never learns **what** the wired device is, that is for openMenu to find out |
-| `port.<A-D>.mode` `.acc` | the output mode (`normal`, `dual`, `keyboard`, `mouse`) and accessory mode (`none`, `vmu`, `rumble`, `both`). **`set` works**: it is applied at once, and because a console only looks at what is on a port when it enumerates it, the wired side restarts (the console sees the controllers leave and come back, like a hot-plug). Not stored until `call sys.commit` |
-| `port.<A-D>.name` | read only: the product name the console reads in the device info (`Dreamcast Controller` for normal and dual stick, `Keyboard`, `Dreamcast Mouse`) |
-| `port.<A-D>.modes` `.accs` | read only: the values `set` accepts on this device (`normal,dual,keyboard,mouse` and `none,vmu,rumble,both`). Ports the board does not have answer `unavailable no such port` |
+| `port.<A-D>.mode` `.acc` | the output mode (`normal`, `dual`, `keyboard`, `mouse`, `racing`, `maracas`) and accessory mode (`none`, `vmu`, `rumble`, `both`). **`set` works**: it is applied at once, and because a console only looks at what is on a port when it enumerates it, the wired side restarts (the console sees the controllers leave and come back, like a hot-plug). Not stored until `call sys.commit` |
+| `port.<A-D>.name` | read only: the product name the console reads in the device info (`Dreamcast Controller` for normal and dual stick, `Keyboard`, `Dreamcast Mouse`, `Racing Controller`, `Maracas Controller`) |
+| `port.<A-D>.modes` `.accs` | read only: the values `set` accepts on this device (`normal,dual,keyboard,mouse,racing,maracas` and `none,vmu,rumble,both`). Ports the board does not have answer `unavailable no such port` |
 | `sys.store` | `commit`: changes are live and stored by `call sys.commit` (a device that stores every change itself says `auto`) |
 | `sys.unsaved` | `yes` while a live change waits to be stored, else `no`. `call sys.commit` stores it (`config_update`, as the web config does), `call sys.revert` loads the stored configuration again; both answer `done` or `nothing` and only act when something is waiting. A new game id loads another stored configuration and also clears the flag |
 | `events` | not implemented: `err events unavailable not implemented` |
@@ -61,7 +61,7 @@ Outputs (upper case): `A B X Y START D Z C LT RT A1_UP A1_DOWN A1_LEFT A1_RIGHT 
 - **BlueRetro's factory default is the `all` layout** (the bumpers are Z and C, Back is D, the second d-pad is DPAD2): tested.
 - **`standard`** is the Pico2Maple layout as read from the Microsap reconstruction (right bumper Z, a fully pulled left trigger C, left bumper and right trigger drive RT): **not checked on a Pico2Maple**.
 - **Deadzone byte:** values up to 200 keep their old meaning (hundredths of a percent, default 135 = 1.35 %). **201 to 218 now mean 3 to 20 percent** (`value - 198`; more than 20 % is never needed, higher bytes count as 20 %), so the levels 2 to 5 (5, 10, 15, 20 %) fit the byte. A configuration that had a value above 200 (the hosted web page offers 205, 210 ... in steps of 5) now has a much bigger deadzone. `iblue_dz_x10000()` is the only place that knows; `adapter.c` uses it.
-- **Never built with ESP-IDF:** `iblue_dcapi_cfg.c`, `manager.c` and `adapter.c` changes were only syntax-checked against stub headers. The Maple interrupt renders a line (a scan of the mapping table) per `get`: the time it takes inside the interrupt was not measured.
+- **Built, not run on hardware:** `iblue_dcapi_cfg.c`, `manager.c` and `adapter.c` now compile with ESP-IDF (no warnings) and the interrupt paths read no flash. The Maple interrupt renders a line (a scan of the mapping table) per `get`: the time it takes inside the interrupt was not measured.
 
 ## Room in the mapping table (2026-11-05)
 

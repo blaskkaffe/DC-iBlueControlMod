@@ -25,7 +25,7 @@ DSTR(S_HELLO, "hello");
 DSTR(S_EVENTS, "events");
 DSTR(S_UNKNOWN, " unknown");
 DSTR(S_READONLY, " readonly");
-DSTR(S_RANGE_MODE, " range normal dual keyboard or mouse");
+DSTR(S_RANGE_MODE, " range normal dual keyboard mouse racing or maracas");
 DSTR(S_RANGE_ACC, " range none vmu rumble or both");
 DSTR(S_RANGE_LAYOUT, " range standard or all");
 DSTR(S_MAPDOT, ".map.");
@@ -59,16 +59,18 @@ DSTR(S_NOPORT, " unavailable no such port");
 /* port fields: state mode acc name */
 enum { F_STATE, F_MODE, F_ACC, F_NAME, F_MODES, F_ACCS, F_LAYOUT, F_LAYOUTS, F_COUNT };
 static DRAM_ATTR const char field_names[F_COUNT][8] = {"state", "mode", "acc", "name", "modes", "accs", "layout", "layouts"};
-DSTR(S_MODES, "normal,dual,keyboard,mouse"); /* what `set port.X.mode` accepts here */
+DSTR(S_MODES, "normal,dual,keyboard,mouse,racing,maracas"); /* what `set port.X.mode` accepts here */
 DSTR(S_ACCS, "none,vmu,rumble,both");
 DSTR(S_STORE, "commit");
 DSTR(S_LAYOUTS, "standard,all,custom");
 DSTR(S_CUSTOM, "custom");
 static DRAM_ATTR const char state_names[3][6] = {"empty", "bt", "wired"};
-static DRAM_ATTR const char mode_names[4][9] = {"normal", "dual", "keyboard", "mouse"};
+#define MODE_COUNT 6 /* BlueRetro dev_mode 0..5: DEV_PAD, DEV_PAD_ALT, DEV_KB, DEV_MOUSE, DEV_RACING, DEV_MARACAS */
+static DRAM_ATTR const char mode_names[MODE_COUNT][9] = {"normal", "dual", "keyboard", "mouse", "racing", "maracas"};
 static DRAM_ATTR const char acc_names[4][7] = {"none", "vmu", "rumble", "both"};
 /* the product name the console reads in the device info (maple.c: ctrl_area_dir_name ...); the dual stick mode has the controller's name */
-static DRAM_ATTR const char dc_names[4][24] = {"Dreamcast Controller", "Dreamcast Controller", "Keyboard", "Dreamcast Mouse"};
+static DRAM_ATTR const char dc_names[MODE_COUNT][24] = {"Dreamcast Controller", "Dreamcast Controller", "Keyboard", "Dreamcast Mouse",
+    "Racing Controller", "Maracas Controller"};
 #define PORT_ID_BASE 100 /* key ids of the port keys: 100 + port * 8 + field */
 
 enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_COUNT };
@@ -197,13 +199,13 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
                 o_str(o, state_names[port_state[p] > 2 ? 0 : port_state[p]]);
                 return 0;
             case F_MODE:
-                o_str(o, mode_names[port_mode[p] & 3]);
+                o_str(o, mode_names[port_mode[p] < MODE_COUNT ? port_mode[p] : 0]);
                 return 0;
             case F_ACC:
                 o_str(o, acc_names[port_acc[p] & 3]);
                 return 0;
             case F_NAME:
-                o_str(o, dc_names[port_mode[p] & 3]);
+                o_str(o, dc_names[port_mode[p] < MODE_COUNT ? port_mode[p] : 0]);
                 return 0;
             case F_MODES:
                 o_str(o, S_MODES);
@@ -550,7 +552,7 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
             line_err(o, key, klen, S_NOPORT);
         }
         else {
-            for (uint32_t i = 0; i < 4; i++) {
+            for (uint32_t i = 0; i < (f == F_MODE ? MODE_COUNT : 4); i++) {
                 if (eq(val, vlen, f == F_MODE ? mode_names[i] : acc_names[i])) {
                     v = (int)i;
                 }
