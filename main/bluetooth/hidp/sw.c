@@ -299,6 +299,7 @@ void bt_hid_sw_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, ui
                             bt_hid_sw_exec_next_state(device);
                             break;
                         }
+#ifndef SW_MOTION_STEPS /* with the motion steps the case further down (it checks the state) replaces this one */
                         case BT_HIDP_SW_SUBCMD_SET_REP_MODE:
                         {
                             esp_timer_restart(device->timer_hdl, 100000);
@@ -307,6 +308,7 @@ void bt_hid_sw_hdlr(struct bt_dev *device, struct bt_hci_pkt *bt_hci_acl_pkt, ui
                             bt_hid_sw_exec_next_state(device);
                             break;
                         }
+#endif
                         case BT_HIDP_SW_SUBCMD_TRIGGER_TIME:
                         {
                             esp_timer_restart(device->timer_hdl, 100000);
