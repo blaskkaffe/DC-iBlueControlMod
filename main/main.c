@@ -56,7 +56,12 @@ static void wired_init_task(void) {
         delay_us(1000);
     }
 
-    if (config.global_cfg.system_cfg < WIRED_MAX && config.global_cfg.system_cfg != WIRED_AUTO) {
+    if (config.global_cfg.system_cfg < WIRED_MAX && config.global_cfg.system_cfg != WIRED_AUTO
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+            /* Only the Dreamcast driver is built for this board */
+            && config.global_cfg.system_cfg == DC
+#endif
+            ) {
         wired_adapter.system_id = config.global_cfg.system_cfg;
         ets_printf("# Config override system : %d: %s\n", wired_adapter.system_id, wired_get_sys_name());
     }

@@ -27,7 +27,9 @@ void IRAM_ATTR iblue_gameid_set(const uint8_t *raw) {
     }
     id[n] = 0;
 
-    if (n == 6 && memcmp(id, "DCBIOS", 6) == 0) {
+    static DRAM_ATTR const char bios_id[6] = {'D', 'C', 'B', 'I', 'O', 'S'}; /* in RAM: Maple interrupt */
+
+    if (n == 6 && memcmp(id, bios_id, 6) == 0) {
         return; /* not a game: the BIOS menu */
     }
     for (i = 0; i < n; i++) {
