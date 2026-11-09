@@ -25,7 +25,7 @@ The baseline tested on hardware is still `../BlueRetro_iBlueControlMod_RGB_v1.bi
 ## What to check on hardware
 
 1. **Install and boot.** Flash it over OTA on blueretro.io and confirm the LED comes on orange.
-2. **Pairing.** Pair a controller and play something. Check that rumble and the VMU still work. The game should see the VMU normally, because the extended-info reply is longer now.
+2. **Pairing.** Pair a controller and play something. Check that rumble and the VMU still work. The extended-info reply is longer now, so confirm the BIOS and games still see the VMU normally.
 3. **LED gestures.** Try the double tap, and the second-tap hold to pick a colour.
 4. **Game ID.** Needs the openMenu fork, which knows the `iBlueControlMod ` marker. Launch a game, then connect blueretro.io: it should show the game ID `DC_<product number>`. A configuration saved for that game should load the next time it starts.
 5. **VMU save during a game ID.** Save to the VMU from inside a game, to exercise flash writes while the bus is busy.
