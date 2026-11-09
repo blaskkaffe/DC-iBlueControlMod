@@ -54,6 +54,14 @@ static const char *sys_name[WIRED_MAX] = {
     "SEA Board",
 };
 
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+/* iBlueControlMod: the board is wired to the Dreamcast Maple bus only. Leaving
+ * the other systems' drivers out keeps their IRAM code out of the image
+ * (the DC API engine runs in the Maple interrupt and needs that IRAM). */
+static const wired_init_t wired_init[WIRED_MAX] = {
+    [DC] = maple_init,
+};
+#else
 static const wired_init_t wired_init[WIRED_MAX] = {
     NULL, /* WIRED_AUTO */
     NULL, /* PARALLEL_1P */
@@ -80,7 +88,16 @@ static const wired_init_t wired_init[WIRED_MAX] = {
     NULL, /* PARALLEL_2P_OD */
     NULL, /* SEA_BOARD */
 };
+#endif
 
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+/* iBlueControlMod: the board is wired to the Dreamcast Maple bus only. Leaving
+ * the other systems' drivers out keeps their IRAM code out of the image
+ * (the DC API engine runs in the Maple interrupt and needs that IRAM). */
+static const wired_port_cfg_t wired_port_cfg[WIRED_MAX] = {
+    [DC] = maple_port_cfg,
+};
+#else
 static const wired_port_cfg_t wired_port_cfg[WIRED_MAX] = {
     NULL, /* WIRED_AUTO */
     NULL, /* PARALLEL_1P */
@@ -107,6 +124,7 @@ static const wired_port_cfg_t wired_port_cfg[WIRED_MAX] = {
     NULL, /* PARALLEL_2P_OD */
     NULL, /* SEA_BOARD */
 };
+#endif
 
 void wired_bare_init(uint32_t package) {
     if (wired_init[wired_adapter.system_id]) {
