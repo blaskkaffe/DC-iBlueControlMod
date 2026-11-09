@@ -1,0 +1,9 @@
+{
+  "repo": "blaskkaffe/iBlueControlMod",
+  "note": "Each source is a branch of the repository: every .bin in its firmware/ folder (and one folder level down) is offered. The first one is the baseline: the build that was tested on hardware.",
+  "sources": [
+    {"ref": "main", "label": "Baseline (main, tested on hardware)", "baseline": true},
+    {"ref": "claude/test-fw", "label": "Test firmware"},
+    {"ref": "development", "label": "Development"}
+  ]
+}
