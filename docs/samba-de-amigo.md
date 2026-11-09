@@ -1,6 +1,6 @@
 # Samba de Amigo maracas: concept
 
-Goal: play Samba de Amigo with two Wii remotes or two Joy-Cons (or one DualShock / DualSense) instead of the real maracas, by sensing the angle and shaking of each controller and reporting it to the Dreamcast as a maracas controller. Status: **maracas output mode (sticks) and Joy-Con motion are built, neither is tried with the game or on hardware; Wii remote motion is not built.** Written 2026-11-01.
+Goal: play Samba de Amigo with two Wii remotes or two Joy-Cons (or one DualShock / DualSense) instead of the real maracas, by sensing the angle and shaking of each controller and reporting it to the Dreamcast as a maracas controller. Status: **maracas output mode (sticks) and Joy-Con motion are in `unified` and built with ESP-IDF (2026-11-09, test image in `firmware/test/`); neither is tried with the game or on hardware; Wii remote motion is not built.** Written 2026-11-01. Over the DC API the modes are `racing` and `maracas` (`set port.A.mode maracas`).
 
 ## What the Dreamcast sees (Sega's maracas spec)
 

@@ -138,7 +138,7 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
 
     switch (op) {
         case IBLUE_CFG_SET_MODE:
-            if (a < WIRED_MAX_DEV && b <= DEV_MOUSE && config.out_cfg[a].dev_mode != b) {
+            if (a < WIRED_MAX_DEV && b <= DEV_MARACAS && config.out_cfg[a].dev_mode != b) {
                 config.out_cfg[a].dev_mode = b;
                 if (b == DEV_KB) {
                     /* the keyboard output needs its identity entries back; with no room the port goes back to the factory table
