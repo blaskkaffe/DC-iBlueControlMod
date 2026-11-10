@@ -13,6 +13,7 @@
         log: [],
         writes: [],
         anim: opts.animDefaults.slice(), animPart: 0, played: 0, animResult: 0,
+        modes: [0, 0, 0, 0], outSel: 0,
         motion: opts.motionDefaults.slice(), motionPart: 0, motionResult: 0, poses: [], motionReset: 0,
     };
     const ACTIONS = 6;
@@ -77,6 +78,7 @@
                 part.forEach((x) => { out.push(x & 0xFF, (x >> 8) & 0xFF); });
                 return dv(out);
             }
+            if (c === 0x50) { const o = [4]; br.modes.forEach((m) => o.push(1, m, 3, 0, 0)); return dv(o); }
             if (c === 0x4C || c === 0x4D || c === 0x4F) { return dv([br.motionResult]); }
             if (c === 0x4E) { return dv([2, 0xFF, 3, 10, 20, 17, 8, 1, 7, 246, 0, 255, 6]); } // left: forward + axis, right: shaking
             if (c === 0x47) {
@@ -96,7 +98,11 @@
         async writeValue(v) {
             const bytes = new Uint8Array(v.buffer ? v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength) : v);
             if (u === idx(uuids[7])) { command(bytes); }
-            else if (u === 2 || u === 3 || u === 4 || u === 5) { br.writes.push([u, Array.from(bytes)]); }
+            else if (u === 2 || u === 3 || u === 4 || u === 5) {
+                br.writes.push([u, Array.from(bytes)]);
+                if (u === 2) { br.outSel = bytes[0]; }
+                if (u === 3) { br.modes[br.outSel] = bytes[0]; }
+            }
             else if (u === 8) { br.ota.chunks++; br.ota.bytes.push(...bytes); }
         },
         async readValue() {

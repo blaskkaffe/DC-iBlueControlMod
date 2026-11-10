@@ -109,4 +109,8 @@ void config_update(uint32_t dst);
 uint32_t config_get_src(void);
 void config_debug_log(void);
 
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+uint32_t config_game_controllers(void);
+#endif
+
 #endif /* _CONFIG_H_ */

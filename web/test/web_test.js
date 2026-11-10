@@ -283,9 +283,14 @@ async function open(browser, server, url, opts) {
         await go(page, 'controllers');
         await page.waitForSelector('#dcPreset0', { state: 'visible' });
         check((await page.$$('#dcPresetRows button')).length === 7, 'seven presets');
+        check(await page.evaluate(() => document.getElementById('dcTile0').classList.contains('on') && document.getElementById('dcPreset0').textContent === 'Selected'), 'the standard controller is shown as selected at first');
         await page.selectOption('#dcOutput', '1');
         await page.click('#dcPreset2'); // racing
         await page.waitForFunction(() => /is set on output 2/.test(document.getElementById('dcPresetStatus').textContent));
+        check(await page.evaluate(() => document.getElementById('dcTile2').classList.contains('on') && !document.getElementById('dcTile0').classList.contains('on')), 'racing is shown as selected after Apply');
+        await page.selectOption('#dcOutput', '0');
+        check(await page.evaluate(() => document.getElementById('dcTile0').classList.contains('on')), 'port A still shows the standard controller');
+        await page.selectOption('#dcOutput', '1');
         const w = await page.evaluate(() => window.__br.writes);
         check(w.some((x) => x[0] === 3 && x[1][0] === 4 && x[1][1] === 3), 'racing mode (4) and rumble + memory written as the output data');
         check(w.some((x) => x[0] === 2 && x[1][0] === 1), 'output 2 selected first');
@@ -308,6 +313,8 @@ async function open(browser, server, url, opts) {
         await page.waitForFunction(() => /Joy-Con motion\) is set/.test(document.getElementById('dcPresetStatus').textContent));
         const w4 = await page.evaluate(() => window.__br.writes);
         check(w4.some((x) => x[0] === 3 && x[1][0] === 5), 'motion preset: maracas mode written');
+        check(await page.evaluate(() => document.getElementById('dcTile4').classList.contains('on') && !document.getElementById('dcTile3').classList.contains('on')), 'the Joy-Con preset (not the stick one) is shown as selected on port A');
+        check(await page.evaluate(() => document.querySelectorAll('#dcTile4 ol.steps li').length === 3), 'the Joy-Con preset has three numbered steps');
         const inputs = w4.filter((x) => x[0] === 4 || x[0] === 5);
         check(inputs.length >= 2, 'motion preset: two inputs were written');
         // motion settings and the calibration poses

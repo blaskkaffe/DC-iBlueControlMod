@@ -118,6 +118,8 @@ main > section.on { display: block; animation: rise .18s ease-out; }
 }
 .tile h3 { font-size: 15px; }
 .tile p { margin: 0; color: var(--muted); font-size: 13.5px; flex: 1; }
+.tile ol.steps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; }
+.tile ol.steps li { margin: 4px 0; }
 .tile.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 
 /* settings rows */

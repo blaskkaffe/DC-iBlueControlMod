@@ -261,6 +261,9 @@ static void bt_fb_task(void *param) {
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
         iblue_dcapi_cfg_poll();
 #endif
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+        mc_poll();
+#endif
 
         /* TX Feedback every 10 ms if rumble on, every 3 sec otherwise */
         if (delay_cnt-- == 0 || fb_changed) {
@@ -451,6 +454,19 @@ int32_t bt_host_get_active_dev(struct bt_dev **device) {
         }
     }
     return -1;
+}
+
+/* How many connected controllers have this type and subtype (subtype -1: any) */
+uint32_t bt_host_active_count(int32_t type, int32_t subtype) {
+    uint32_t n = 0;
+
+    for (uint32_t i = 0; i < BT_MAX_DEV; i++) {
+        if (atomic_test_bit(&bt_dev[i].flags, BT_DEV_HID_INIT_DONE) && bt_dev[i].ids.type == type &&
+            (subtype < 0 || bt_dev[i].ids.subtype == subtype)) {
+            n++;
+        }
+    }
+    return n;
 }
 
 int32_t bt_host_get_hid_init_dev(struct bt_dev **device) {

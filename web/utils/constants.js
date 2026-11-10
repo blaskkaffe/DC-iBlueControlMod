@@ -526,6 +526,7 @@ export const cfg_cmd_set_motion_cfg = 0x4C;
 export const cfg_cmd_motion_pose = 0x4D;
 export const cfg_cmd_get_motion_status = 0x4E;
 export const cfg_cmd_reset_motion_cal = 0x4F;
+export const cfg_cmd_get_port_status = 0x50;
 
 /* What a tap gesture can do: the numbers are what the firmware knows (iblue/iblue_gesture.h). */
 export const ibluGestureNames = ['Single tap', 'Double tap', 'Triple tap'];

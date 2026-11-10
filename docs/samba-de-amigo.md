@@ -60,6 +60,14 @@ Joy-Cons are the best source: each has a 3-axis accelerometer and a gyro, and tw
 - BLE commands 0x4B (get settings, two parts), 0x4C (set), 0x4D (pose, delay), 0x4E (status), 0x4F (forget the learned axes).
 - The unknowns: the Joy-Cons' axis directions are learned by the poses rather than assumed; how the game turns Y into its three heights and whether it reads X is still only known by trying.
 
+## Set up by the game (2026-11-10)
+
+Only Samba de Amigo (and Ver. 2000) use the maracas, so the adapter sets them up by itself: when openMenu announces the game (Maple command 0x21, `docs/led-and-gameid.md`), no configuration is saved for it, **and a Joy-Con is connected with "Joy-Con motion" on**, port A becomes the maracas controller with the Joy-Con maps. Without a Joy-Con nothing changes (an ordinary pad plays the game as a pad); when a Joy-Con comes or goes during the game the setup is looked at again. Outside the game the normal configuration is back, so openMenu can be driven. A configuration saved for the game wins. Product numbers: Japan HDR-0063, USA MK-51092, Europe MK-51092-50, Ver. 2000 (Japan only) HDR-0131, from catalogues, not from discs. Host-tested (`test_gamecfg.c`); not tried on a console.
+
+### Wii Remote (not written)
+
+The firmware reads a Wii Remote's buttons only. Its accelerometer would give the height and the shake of a maraca; left / right cannot be measured without a gyro (MotionPlus) or the sensor bar, a twist of the wrist could stand in. A Nunchuk has its own accelerometer and could be the second maraca. Until that exists a Wii Remote does not trigger the setup.
+
 ## Phases
 
 1. **(Built, untried with the game.) Output mode Maracas with sticks** (Flycast's way): the descriptor, name, power, and a preset mapping the left stick to the left maraca and the right stick to the right (stick up = high: the Y axes are turned around), L1 / R1 = shake B / A, L2 = C, R2 / Start = Start. No motion. Small; shows what the game accepts and answers the open questions (which axis is the height, the value range, the connection loss signal). **Do this first.**

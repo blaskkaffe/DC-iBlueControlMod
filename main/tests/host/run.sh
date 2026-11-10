@@ -13,6 +13,14 @@ cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." 
 # the DC API engine (dc1), with the game id module and the same stubs
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/dcapi" "$d/test_dcapi.c" "$d/../../iblue/iblue_dcapi.c" "$d/../../iblue/iblue_gameid.c" "$d/../../iblue/iblue_mapcfg.c"
 "$out/dcapi"
+# built-in setups of games (Samba de Amigo)
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/gamecfg" "$d/test_gamecfg.c" "$d/../../iblue/iblue_gamecfg.c"
+"$out/gamecfg"
+# the memory card: formatting a blank card, reading frames whose first bits were missed
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/vmu" "$d/test_vmu.c" "$d/../../iblue/iblue_vmu.c"
+"$out/vmu"
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/mframe" "$d/test_maple_frame.c"
+"$out/mframe"
 # the shared mapping text form and the layouts
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/mapcfg" "$d/test_mapcfg.c" "$d/../../iblue/iblue_mapcfg.c"
 "$out/mapcfg"

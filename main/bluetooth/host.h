@@ -138,6 +138,7 @@ int32_t bt_host_get_hid_init_dev(struct bt_dev **device);
 int32_t bt_host_get_dev_from_bdaddr(uint8_t *bdaddr, struct bt_dev **device);
 int32_t bt_host_get_dev_from_handle(uint16_t handle, struct bt_dev **device);
 int32_t bt_host_get_dev_from_id(uint8_t id, struct bt_dev **device);
+uint32_t bt_host_active_count(int32_t type, int32_t subtype);
 int32_t bt_host_get_dev_from_out_idx(uint8_t out_idx, struct bt_dev **device);
 int32_t bt_host_get_active_dev_from_out_idx(uint8_t out_idx, struct bt_dev **device);
 int32_t bt_host_get_dev_conf(struct bt_dev **device);

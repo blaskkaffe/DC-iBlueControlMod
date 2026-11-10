@@ -20,6 +20,7 @@
 #include "iblue/iblue_gameid.h"
 #include "iblue/iblue_dcapi.h"
 #include "maple.h"
+#include "maple_frame.h"
 
 #define ID_CTRL    0x00000001
 #define ID_VMU_MEM 0x00000002
@@ -45,6 +46,8 @@
 #define CMD_BLOCK_WRITE    0x0C
 #define CMD_WRITE_COMPLETE 0x0D
 #define CMD_SET_CONDITION  0x0E
+#define CMD_FILE_ERROR     0xFB /* answers of a device that cannot do what was asked */
+#define CMD_RESEND         0xFC /* "send that again": the frame arrived damaged */
 #define CMD_GAMEID         IBLUE_GAMEID_CMD /* 0x21: the game id from openMenu, see iblue/iblue_gameid.h */
 #define CMD_DCAPI          IBLUE_DCAPI_CMD  /* 0x22: the DC API, see iblue/iblue_dcapi.h */
 
@@ -79,7 +82,7 @@
 #define wait_100ns() asm("movi a8, 5\n\tloop a8, waitend%=\n\tnop\n\twaitend%=:\n":::"a8");
 #define wait_500ns() asm("movi a8, 49\n\tloop a8, waitend%=\n\tnop\n\twaitend%=:\n":::"a8");
 #define wait_200ns() asm("movi a8, 16\n\tloop a8, waitend%=\n\tnop\n\twaitend%=:\n":::"a8");
-#define maple_fix_byte(s, a, b) (s ? ((a << s) | (b >> (8 - s))) : b)
+/* maple_fix_byte() and maple_frame_ok(): maple_frame.h */
 
 struct maple_pkt {
     union {
@@ -311,6 +314,9 @@ static unsigned maple_rx(unsigned cause) {
     u32_val_t func;
     uint8_t phase;
     uint8_t block_no;
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+    uint32_t write_ok = 0;
+#endif
 
     if (maple0) {
         core0_stall_start();
@@ -403,6 +409,12 @@ maple_end:
             src = pkt.dst;
             dst = pkt.src;
         }
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+        /* checked here, before the buffer is reused for the answer */
+        if (cmd == CMD_BLOCK_WRITE) {
+            write_ok = maple_frame_ok(pkt.data, byte, bad_frame, len);
+        }
+#endif
         switch (config.out_cfg[port].dev_mode) {
             case DEV_KB:
                 switch(src & ADDR_MASK) {
@@ -715,6 +727,19 @@ maple_end:
                                 // }
                                 pkt.len = 0x00;
                                 pkt.cmd = CMD_ACK;
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+                                /* A write is only stored when the whole frame arrived intact: 34 words (function, place, 128
+                                 * bytes) and a check byte that fits. Otherwise the Dreamcast is asked to send it again, as a
+                                 * real VMU does, and nothing is stored. A phase past the end of the block is refused: it
+                                 * would be written outside the card's memory. */
+                                if (func.val == ID_VMU_MEM && (len != 34 || !write_ok)) {
+                                    pkt.cmd = CMD_RESEND;
+                                }
+                                else if (func.val == ID_VMU_MEM && phase > 3) {
+                                    pkt.cmd = CMD_FILE_ERROR;
+                                }
+                                else
+#endif
                                 if (func.val == ID_VMU_MEM) {
                                     // ets_printf("W: %02X %d %02X\n", block_no, phase, crc);
                                     if (bad_frame) {
@@ -734,6 +759,15 @@ maple_end:
                                 pkt.cmd = CMD_ACK;
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 break;
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+                            case CMD_SET_CONDITION:
+                                /* The beeper of the VMU (the clock function this unit announces). There is no beeper, but a
+                                 * game that beeps must get its answer, or the Dreamcast waits for it every time. */
+                                pkt.len = 0x00;
+                                pkt.cmd = CMD_ACK;
+                                maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+                                break;
+#endif
                             default:
                                 ets_printf("%02X: Unk cmd: %02X %02X %ld\n", dst, cmd, crc, byte);
                                 break;

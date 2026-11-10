@@ -2,7 +2,7 @@
 // A command is written to the command characteristic, the answer is read from it right after.
 import { brUuid, cfg_cmd_get_iblue_info, cfg_cmd_get_gestures, cfg_cmd_set_gestures,
     cfg_cmd_get_anim_cfg, cfg_cmd_set_anim_cfg, cfg_cmd_play_anim, cfg_cmd_reset_anim_cfg,
-    cfg_cmd_get_motion_cfg, cfg_cmd_set_motion_cfg, cfg_cmd_motion_pose, cfg_cmd_get_motion_status, cfg_cmd_reset_motion_cal }
+    cfg_cmd_get_motion_cfg, cfg_cmd_set_motion_cfg, cfg_cmd_motion_pose, cfg_cmd_get_motion_status, cfg_cmd_reset_motion_cal, cfg_cmd_get_port_status }
     from './constants.js';
 import { ibluAnimFields } from './ibluAnim.js';
 import { ibluMotionFields } from './ibluMotion.js';
@@ -129,6 +129,23 @@ export async function getMotionStatus(service) {
         const f = v.getUint8(o + 1);
         out.push({ side: v.getInt8(o), forward: !!(f & 1), axis: !!(f & 2), shaking: !!(f & 4), range: !!(f & 8), failed: !!(f & 16),
             x: v.getInt8(o + 2), y: v.getInt8(o + 3), height: v.getInt8(o + 4), heading: v.getInt8(o + 5) * 2 });
+    }
+    return out;
+}
+
+/* What each port is now: state, output type (index into devCfg), accessories, Bluetooth type and subtype. Null when the
+ * firmware does not answer (another build answers a read with the one byte ABI version). */
+export async function getPortStatus(service) {
+    const v = await send(service, [cfg_cmd_get_port_status], true);
+    const n = v.byteLength > 0 ? v.getUint8(0) : 0;
+
+    if (n < 1 || n > 4 || v.byteLength < 1 + 5 * n) { return null; }
+    const out = [];
+
+    for (let i = 0; i < n; i++) {
+        const o = 1 + 5 * i;
+
+        out.push({ state: v.getUint8(o), mode: v.getUint8(o + 1), acc: v.getUint8(o + 2), btType: v.getUint8(o + 3), btSub: v.getUint8(o + 4) });
     }
     return out;
 }

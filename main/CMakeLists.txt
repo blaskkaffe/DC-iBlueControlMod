@@ -71,6 +71,8 @@ set(srcs
     "iblue/iblue_gameid_ctl.c"
     "iblue/iblue_motion.c"
     "iblue/iblue_motion_ctl.c"
+    "iblue/iblue_gamecfg.c"
+    "iblue/iblue_vmu.c"
     "iblue/iblue_gesture.c"
     "iblue/iblue_tap.c"
     "iblue/iblue_dcapi.c"

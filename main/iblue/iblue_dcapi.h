@@ -71,6 +71,7 @@
 #define IBLUE_CFG_REVERT 4     /* load the stored configuration again */
 #define IBLUE_CFG_SET_LAYOUT 7 /* a = port, b = layout index (iblue_layout_name()) */
 #define IBLUE_CFG_MAP_SET 8    /* a = port, b = output index, data[3] = mailbox slot: replaces what drives the output with the slot's entries, in one step */
+#define IBLUE_CFG_GAME_RELOAD 9 /* load the configuration of the running game again (the connected controllers changed) */
 /* Both return 1 when the message is queued, 0 when it was dropped (queue full or muted; for the map also: the mailbox is still busy).
  * The engine then answers err busy and changes nothing it has told the caller about. */
 int iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b);
