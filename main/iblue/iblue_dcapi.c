@@ -45,6 +45,7 @@ DSTR(S_KIND, "adapter");
 DSTR(S_NAME, "iBlueControlMod");
 DSTR(S_API, "1");
 DSTR(S_CAPS, "api,net,port,game");
+DSTR(S_CAPS_MOTION, "api,net,port,game,motion");
 DSTR(S_DCNOW, "dcnow");
 DSTR(S_DCNET, "dcnet");
 DSTR(S_SELF, "self");
@@ -56,6 +57,21 @@ DSTR(S_FULL, " full no room in the mapping table");
 DSTR(S_BUSY, " busy try again");
 DSTR(S_TOOLONG, "err request too long\n");
 DSTR(S_NOPORT, " unavailable no such port");
+DSTR(S_RANGE_ONOFF, " range off or on");
+DSTR(S_MOTION_OFF, " unavailable motion mode is off");
+DSTR(S_BADARG, " bad seconds 0 to 30");
+DSTR(S_STARTED, "started");
+DSTR(S_ON, "on");
+DSTR(S_OFF, "off");
+DSTR(S_WAITING, "waiting");
+DSTR(S_UNCAL, "uncalibrated");
+DSTR(S_READY, "ready");
+DSTR(S_ABSENT, "absent");
+DSTR(S_POSE_FORWARD, "motion.pose.forward");
+DSTR(S_POSE_UP, "motion.pose.up");
+DSTR(S_POSE_DOWN, "motion.pose.down");
+DSTR(S_POSE_OUT, "motion.pose.out");
+DSTR(S_MOTION_RESET, "motion.reset");
 /* port fields: state mode acc name */
 enum { F_STATE, F_MODE, F_ACC, F_NAME, F_MODES, F_ACCS, F_LAYOUT, F_LAYOUTS, F_COUNT };
 static DRAM_ATTR const char field_names[F_COUNT][8] = {"state", "mode", "acc", "name", "modes", "accs", "layout", "layouts"};
@@ -73,7 +89,7 @@ static DRAM_ATTR const char dc_names[MODE_COUNT][24] = {"Dreamcast Controller", 
     "Racing Controller", "Maracas Controller"};
 #define PORT_ID_BASE 100 /* key ids of the port keys: 100 + port * 8 + field */
 
-enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_COUNT };
+enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_MOTION_MODE, K_MOTION_STATE, K_MOTION_LEFT, K_MOTION_RIGHT, K_COUNT };
 #define K_HELLO_LAST K_CAPS
 static DRAM_ATTR const struct {
     char name[16];
@@ -81,12 +97,16 @@ static DRAM_ATTR const struct {
 } keytab[K_COUNT] = {
     {"hello.kind", K_KIND}, {"hello.name", K_NAME}, {"hello.version", K_VERSION}, {"hello.api", K_API},
     {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET}, {"sys.unsaved", K_UNSAVED}, {"sys.store", K_STORE},
+    {"motion.mode", K_MOTION_MODE}, {"motion.state", K_MOTION_STATE}, {"motion.left", K_MOTION_LEFT}, {"motion.right", K_MOTION_RIGHT},
 };
 
 #define VERSION_MAX 32
 static DRAM_ATTR char version[VERSION_MAX + 1];
 static DRAM_ATTR volatile uint8_t net_selected; /* 0 = not set, 1 = dcnow, 2 = dcnet */
 static DRAM_ATTR volatile uint8_t unsaved; /* a live change waits for sys.commit */
+/* Joy-Con motion (normal code sets it, iblue_dcapi_motion_set()): the firmware has it, mode on, and per side (left, right) 0 no
+ * Joy-Con followed, 1 followed but forward not set, 2 followed and calibrated */
+static DRAM_ATTR volatile uint8_t motion_avail, motion_mode, motion_pad[2];
 static DRAM_ATTR volatile uint8_t port_cnt;
 static DRAM_ATTR volatile uint8_t port_state[IBLUE_DCAPI_PORTS], port_mode[IBLUE_DCAPI_PORTS], port_acc[IBLUE_DCAPI_PORTS];
 static DRAM_ATTR volatile uint8_t port_bt_type[IBLUE_DCAPI_PORTS], port_bt_sub[IBLUE_DCAPI_PORTS];
@@ -164,7 +184,38 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
             o_str(o, S_API);
             return 0;
         case K_CAPS:
-            o_str(o, S_CAPS);
+            o_str(o, motion_avail ? S_CAPS_MOTION : S_CAPS);
+            return 0;
+        case K_MOTION_MODE:
+        case K_MOTION_STATE:
+        case K_MOTION_LEFT:
+        case K_MOTION_RIGHT:
+            if (!motion_avail) {
+                return 1;
+            }
+            if (id == K_MOTION_MODE) {
+                o_str(o, motion_mode ? S_ON : S_OFF);
+            }
+            else if (id == K_MOTION_STATE) {
+                /* off; waiting for a Joy-Con; some followed Joy-Con has no forward yet; or all followed ones are calibrated */
+                if (!motion_mode) {
+                    o_str(o, S_OFF);
+                }
+                else if (!motion_pad[0] && !motion_pad[1]) {
+                    o_str(o, S_WAITING);
+                }
+                else if ((motion_pad[0] && motion_pad[0] < 2) || (motion_pad[1] && motion_pad[1] < 2)) {
+                    o_str(o, S_UNCAL);
+                }
+                else {
+                    o_str(o, S_READY);
+                }
+            }
+            else {
+                uint8_t v = motion_pad[id == K_MOTION_RIGHT ? 1 : 0];
+
+                o_str(o, v == 2 ? S_READY : (v == 1 ? S_UNCAL : S_ABSENT));
+            }
             return 0;
         case K_GAME:
             if (!iblue_gameid_current()[0]) {
@@ -579,8 +630,27 @@ static void IRAM_ATTR op_set(struct out *o, const char *key, size_t klen, const 
             }
         }
     }
+    else if (id == K_MOTION_MODE) {
+        int on = eq(val, vlen, S_ON) ? 1 : (eq(val, vlen, S_OFF) ? 0 : -1);
+
+        if (!motion_avail) {
+            line_err(o, key, klen, S_NOTSET);
+        }
+        else if (on < 0) {
+            line_err(o, key, klen, S_RANGE_ONOFF);
+        }
+        else {
+            /* kept in flash by the Bluetooth task at once (not part of sys.commit); the Joy-Cons have to connect again */
+            if (motion_mode != on && !iblue_dcapi_cfg_request(IBLUE_CFG_MOTION_MODE, (uint8_t)on, 0)) {
+                line_err(o, key, klen, S_BUSY);
+                return;
+            }
+            motion_mode = (uint8_t)on;
+            line_ok(o, K_MOTION_MODE);
+        }
+    }
     else if (id != K_NET) {
-        line_err(o, key, klen, S_READONLY); /* sys.unsaved, game.id and hello.* too */
+        line_err(o, key, klen, S_READONLY); /* sys.unsaved, game.id, motion.state and hello.* too */
     }
     else if (eq(val, vlen, S_DCNOW)) {
         net_selected = 1;
@@ -742,6 +812,59 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
                 }
                 o_end_line(&o);
             }
+            else if (motion_avail && (eq(line + b, e - b, S_POSE_FORWARD) || eq(line + b, e - b, S_POSE_UP) ||
+                                      eq(line + b, e - b, S_POSE_DOWN) || eq(line + b, e - b, S_POSE_OUT))) {
+                /* call motion.pose.<forward|up|down|out> [seconds]: the Joy-Cons are held still when the time is up */
+                uint32_t pose = eq(line + b, e - b, S_POSE_FORWARD) ? 0 : (eq(line + b, e - b, S_POSE_UP) ? 1 : (eq(line + b, e - b, S_POSE_DOWN) ? 2 : 3));
+                size_t a = e;
+                uint32_t secs = 5;
+                int bad = 0;
+
+                while (a < n && line[a] == ' ') {
+                    a++;
+                }
+                if (a < n) {
+                    secs = 0;
+                    for (size_t k = a; k < n; k++) {
+                        if (line[k] < '0' || line[k] > '9' || k - a > 2) {
+                            bad = 1;
+                            break;
+                        }
+                        secs = secs * 10 + (uint32_t)(line[k] - '0');
+                    }
+                    if (secs > 30) {
+                        bad = 1;
+                    }
+                }
+                if (!motion_mode) {
+                    line_err(&o, line + b, e - b, S_MOTION_OFF);
+                }
+                else if (bad) {
+                    line_err(&o, line + b, e - b, S_BADARG);
+                }
+                else if (!iblue_dcapi_cfg_request(IBLUE_CFG_MOTION_POSE, (uint8_t)pose, (uint8_t)secs)) {
+                    line_err(&o, line + b, e - b, S_BUSY);
+                }
+                else {
+                    o_str(&o, S_OK);
+                    o_mem(&o, line + b, e - b);
+                    o_str(&o, S_SP);
+                    o_str(&o, S_STARTED);
+                    o_end_line(&o);
+                }
+            }
+            else if (motion_avail && eq(line + b, e - b, S_MOTION_RESET)) {
+                if (!iblue_dcapi_cfg_request(IBLUE_CFG_MOTION_RESET, 0, 0)) {
+                    line_err(&o, line + b, e - b, S_BUSY);
+                }
+                else {
+                    o_str(&o, S_OK);
+                    o_mem(&o, line + b, e - b);
+                    o_str(&o, S_SP);
+                    o_str(&o, S_DONE);
+                    o_end_line(&o);
+                }
+            }
             else {
                 line_err(&o, line + b, e - b, S_UNKNOWN);
             }
@@ -852,6 +975,15 @@ size_t IRAM_ATTR iblue_dcapi_maple(const uint8_t *wire, size_t n, uint8_t *out_w
     return words;
 }
 
+/* The Joy-Con motion state, from normal code: this firmware has motion, mode on / off, and per side 0 no Joy-Con followed, 1 followed
+ * but forward not set, 2 calibrated. Until the first call the keys do not exist (a build without motion). */
+void iblue_dcapi_motion_set(uint8_t mode, uint8_t left, uint8_t right) {
+    motion_mode = mode ? 1 : 0;
+    motion_pad[0] = left > 2 ? 2 : left;
+    motion_pad[1] = right > 2 ? 2 : right;
+    motion_avail = 1;
+}
+
 void IRAM_ATTR iblue_dcapi_ext_caps(uint8_t *wire24) {
     static DRAM_ATTR const char hex[] = "0123456789abcdef";
     char txt[24];
@@ -862,7 +994,7 @@ void IRAM_ATTR iblue_dcapi_ext_caps(uint8_t *wire24) {
     txt[2] = '1';
     txt[3] = ' ';
     for (uint32_t i = 0; i < 8; i++) {
-        txt[4 + i] = hex[(IBLUE_DCAPI_CAPS >> (28 - 4 * i)) & 0xF];
+        txt[4 + i] = hex[((IBLUE_DCAPI_CAPS | (motion_avail ? IBLUE_DCAPI_CAP_MOTION : 0)) >> (28 - 4 * i)) & 0xF];
     }
     for (uint32_t w = 0; w < 24; w += 4) {
         for (uint32_t j = 0; j < 4; j++) {

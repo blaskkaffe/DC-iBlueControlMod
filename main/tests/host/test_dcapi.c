@@ -319,6 +319,43 @@ int main(void) {
         SAME(back, "dc1\nok port.A.map.Z lb\n");
     }
 
+    /* Joy-Con motion: the keys exist only after the firmware has reported it (a build without motion has none) */
+    SAME(ask("dc1\nget motion.mode\nget motion.*\n"), "dc1\nerr motion.mode unavailable not set\nerr motion.* unknown\n");
+    SAME(ask("dc1\nset motion.mode on\ncall motion.pose.forward\n"), "dc1\nerr motion.mode unavailable not set\nerr motion.pose.forward unknown\n");
+    CHECK(IBLUE_DCAPI_CAPS == 0x2B);
+    nreq = 0;
+    iblue_dcapi_motion_set(0, 0, 0);
+    SAME(ask("dc1\nget hello.caps\nget motion.mode\nget motion.state\nget motion.left\nget motion.right\n"),
+         "dc1\nok hello.caps api,net,port,game,motion\nok motion.mode off\nok motion.state off\nok motion.left absent\nok motion.right absent\n");
+    SAME(ask("dc1\nget motion.*\n"), "dc1\nok motion.mode off\nok motion.state off\nok motion.left absent\nok motion.right absent\n");
+    SAME(ask("dc1\ncall motion.pose.forward\n"), "dc1\nerr motion.pose.forward unavailable motion mode is off\n");
+    SAME(ask("dc1\nset motion.mode maybe\n"), "dc1\nerr motion.mode range off or on\n");
+    CHECK(nreq == 0);
+    SAME(ask("dc1\nset motion.mode on\nget motion.mode\nget motion.state\n"), "dc1\nok motion.mode on\nok motion.mode on\nok motion.state waiting\n");
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_MOTION_MODE && reqs[0].a == 1);
+    SAME(ask("dc1\nset motion.mode on\n"), "dc1\nok motion.mode on\n");
+    CHECK(nreq == 1); /* no change, nothing asked */
+    SAME(ask("dc1\nset motion.state ready\n"), "dc1\nerr motion.state readonly\n");
+    iblue_dcapi_motion_set(1, 1, 0);
+    SAME(ask("dc1\nget motion.state\nget motion.left\nget motion.right\n"), "dc1\nok motion.state uncalibrated\nok motion.left uncalibrated\nok motion.right absent\n");
+    iblue_dcapi_motion_set(1, 2, 2);
+    SAME(ask("dc1\nget motion.state\n"), "dc1\nok motion.state ready\n");
+    nreq = 0;
+    SAME(ask("dc1\ncall motion.pose.up 3\ncall motion.pose.out\ncall motion.pose.down 0\n"),
+         "dc1\nok motion.pose.up started\nok motion.pose.out started\nok motion.pose.down started\n");
+    CHECK(nreq == 3 && reqs[0].op == IBLUE_CFG_MOTION_POSE && reqs[0].a == 1 && reqs[0].b == 3);
+    CHECK(reqs[1].a == 3 && reqs[1].b == 5 && reqs[2].a == 2 && reqs[2].b == 0);
+    SAME(ask("dc1\ncall motion.pose.forward 31\ncall motion.pose.forward x\n"),
+         "dc1\nerr motion.pose.forward bad seconds 0 to 30\nerr motion.pose.forward bad seconds 0 to 30\n");
+    CHECK(nreq == 3);
+    SAME(ask("dc1\ncall motion.reset\n"), "dc1\nok motion.reset done\n");
+    CHECK(nreq == 4 && reqs[3].op == IBLUE_CFG_MOTION_RESET);
+    {
+        uint8_t w[24];
+        iblue_dcapi_ext_caps(w);
+        CHECK(w[8] == 'b' && w[9] == 'a' && w[10] == '0' && w[11] == '0'); /* "dc1 000000ab", every word reversed: 0xAB with motion */
+    }
+
     printf("dcapi: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

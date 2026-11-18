@@ -17,6 +17,10 @@
  *                      come back; not stored until call sys.commit)
  *    port.<A-D>.acc    none | vmu | rumble | both          (the accessory; same)
  *    sys.unsaved       yes | no: a change is waiting for call sys.commit.   call sys.commit stores, call sys.revert loads the stored one
+ *    motion.mode       off | on: Joy-Con motion (the position and shake of a Joy-Con as maracas), kept at once; the Joy-Cons connect again
+ *    motion.state      off | waiting | uncalibrated | ready (read only)     motion.left / motion.right  absent | uncalibrated | ready
+ *    call motion.pose.forward|up|down|out [seconds]    take a calibration pose after the seconds (default 5, 0 to 30), Joy-Cons held still
+ *    call motion.reset                                  forget the learned pointing directions and ranges
  *    port.<A-D>.name   what the Dreamcast sees on the port (read only)
  *    port.<A-D>.layout   standard | all | custom: a named button arrangement (the whole mapping). Setting standard or all replaces the
  *                      pad mapping of the port; custom is what a port has when it matches none (it cannot be set, edit a map line)
@@ -54,6 +58,7 @@
 #define IBLUE_DCAPI_CAP_NET (1u << 1)
 #define IBLUE_DCAPI_CAP_PORT (1u << 3)
 #define IBLUE_DCAPI_CAP_GAME (1u << 5)
+#define IBLUE_DCAPI_CAP_MOTION (1u << 7) /* added to the caps (hello.caps "motion") once the firmware reports motion, see iblue_dcapi_motion_set() */
 #define IBLUE_DCAPI_CAPS (IBLUE_DCAPI_CAP_API | IBLUE_DCAPI_CAP_NET | IBLUE_DCAPI_CAP_PORT | IBLUE_DCAPI_CAP_GAME)
 #define IBLUE_DCAPI_PORTS 4           /* ports A to D */
 /* port states, output modes and accessory modes use the numbers of adapter.h (DEV_*, ACC_*): 0 empty, 1 Bluetooth, 2 wired */
@@ -71,6 +76,9 @@
 #define IBLUE_CFG_REVERT 4     /* load the stored configuration again */
 #define IBLUE_CFG_SET_LAYOUT 7 /* a = port, b = layout index (iblue_layout_name()) */
 #define IBLUE_CFG_MAP_SET 8    /* a = port, b = output index, data[3] = mailbox slot: replaces what drives the output with the slot's entries, in one step */
+#define IBLUE_CFG_MOTION_MODE 10 /* a = 1 on, 0 off: kept in flash at once */
+#define IBLUE_CFG_MOTION_POSE 11 /* a = pose (0 forward, 1 up, 2 down, 3 out), b = seconds until it is taken */
+#define IBLUE_CFG_MOTION_RESET 12 /* forget the learned pointing directions and ranges */
 #define IBLUE_CFG_GAME_RELOAD 9 /* load the configuration of the running game again (the connected controllers changed) */
 /* Both return 1 when the message is queued, 0 when it was dropped (queue full or muted; for the map also: the mailbox is still busy).
  * The engine then answers err busy and changes nothing it has told the caller about. */
@@ -111,6 +119,9 @@ void iblue_dcapi_port_set(uint32_t port, uint8_t state, uint8_t dev_mode, uint8_
 void iblue_dcapi_port_layout(uint32_t port, int layout);
 /* BLE GET_PORT_STATUS (0x50): [count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]; returns the length */
 size_t iblue_dcapi_port_status(uint8_t *out);
+/* Joy-Con motion (docs/dcapi.md, keys motion.*): mode 0/1; left / right: 0 no Joy-Con followed, 1 followed, forward not set, 2 calibrated.
+ * Normal code calls it whenever one of them changes (and once at start: that is what makes the keys exist). */
+void iblue_dcapi_motion_set(uint8_t mode, uint8_t left, uint8_t right);
 
 void iblue_dcapi_ble_write(const uint8_t *data, size_t len);
 size_t iblue_dcapi_ble_read(uint8_t *out, size_t max);
@@ -122,6 +133,7 @@ size_t iblue_dcapi_ble_read(uint8_t *out, size_t max);
 #define iblue_dcapi_port_count(count)
 #define iblue_dcapi_port_set(port, state, dev_mode, acc_mode, bt_type, bt_subtype)
 #define iblue_dcapi_port_layout(port, layout)
+#define iblue_dcapi_motion_set(mode, left, right)
 #endif
 
 #endif /* _IBLUE_DCAPI_H_ */
