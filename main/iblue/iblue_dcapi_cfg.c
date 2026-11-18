@@ -11,6 +11,7 @@
 #include "adapter/config.h"
 #include "system/manager.h"
 #include "iblue/iblue_dcapi.h"
+#include "iblue/iblue_motion_ctl.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
 
@@ -192,6 +193,23 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
                 }
             }
             break;
+#ifdef CONFIG_BLUERETRO_IBLUE_MOTION
+        case IBLUE_CFG_MOTION_MODE:
+        {
+            struct iblue_motion_cfg c;
+
+            iblue_motion_ctl_get_cfg(&c);
+            c.mode = a ? 1 : 0;
+            iblue_motion_ctl_set_cfg(&c);
+            break;
+        }
+        case IBLUE_CFG_MOTION_POSE:
+            iblue_motion_ctl_request_pose((int)a, (int)b);
+            break;
+        case IBLUE_CFG_MOTION_RESET:
+            iblue_motion_ctl_reset_cal();
+            break;
+#endif
         case IBLUE_CFG_COMMIT:
             config_update(config_get_src());
             break;

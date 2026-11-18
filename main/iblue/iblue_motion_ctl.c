@@ -7,6 +7,7 @@
 #include <esp_timer.h>
 #include "iblue/iblue_motion_ctl.h"
 #include "iblue/iblue_led.h"
+#include "iblue/iblue_dcapi.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_MOTION
 
@@ -44,6 +45,21 @@ static struct dev_state devs[IBLUE_MOTION_DEVS];
 static volatile uint32_t req_seq;
 static volatile int req_pose;
 static volatile int64_t req_due_ms;
+
+/* what the DC API (motion.*) reports: the mode and, per side, no Joy-Con followed / followed / followed and calibrated */
+static void publish(void) {
+    uint8_t pad[2] = {0, 0};
+
+    for (int i = 0; i < IBLUE_MOTION_DEVS; i++) {
+        if (devs[i].used) {
+            int s = devs[i].side < 0 ? 0 : 1;
+            uint8_t v = devs[i].m.fwd_known ? 2 : 1;
+
+            if (v > pad[s]) { pad[s] = v; }
+        }
+    }
+    iblue_dcapi_motion_set((uint8_t)(cfg.mode == 1), pad[0], pad[1]);
+}
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 
@@ -89,6 +105,7 @@ void iblue_motion_ctl_init(void) {
         nvs_close(nvs);
     }
     iblue_motion_cfg_clamp(&cfg);
+    publish();
 }
 
 int iblue_motion_ctl_mode(void) { return cfg.mode == 1; }
@@ -115,6 +132,7 @@ void iblue_motion_ctl_set_cfg(const struct iblue_motion_cfg *c) {
         nvs_commit(nvs);
         nvs_close(nvs);
     }
+    publish();
 }
 
 void iblue_motion_ctl_reset_cal(void) {
@@ -123,6 +141,7 @@ void iblue_motion_ctl_reset_cal(void) {
     for (int i = 0; i < IBLUE_MOTION_DEVS; i++) {
         if (devs[i].used) { devs[i].used = 0; } /* started again from the defaults at the next report */
     }
+    publish();
 }
 
 void iblue_motion_ctl_request_pose(int pose, int delay_s) {
@@ -135,7 +154,7 @@ void iblue_motion_ctl_request_pose(int pose, int delay_s) {
 }
 
 void iblue_motion_ctl_gone(int dev) {
-    if (dev >= 0 && dev < IBLUE_MOTION_DEVS) { devs[dev].used = 0; }
+    if (dev >= 0 && dev < IBLUE_MOTION_DEVS) { devs[dev].used = 0; publish(); }
 }
 
 static void dev_start(struct dev_state *d, int side) {
@@ -176,7 +195,7 @@ int iblue_motion_ctl_feed(int dev, int side, const uint8_t *imu, int cal_pressed
 
     if (!iblue_motion_ctl_mode() || dev < 0 || dev >= IBLUE_MOTION_DEVS) { return 0; }
     d = &devs[dev];
-    if (!d->used || d->side != (side < 0 ? -1 : 1)) { dev_start(d, side); }
+    if (!d->used || d->side != (side < 0 ? -1 : 1)) { dev_start(d, side); publish(); }
 
     for (int s = 0; s < 3; s++) {
         const uint8_t *p = imu + 12 * s;
@@ -211,6 +230,7 @@ int iblue_motion_ctl_feed(int dev, int side, const uint8_t *imu, int cal_pressed
             d->pose_failed = 0;
             if (req_pose != IBLUE_MOTION_POSE_FORWARD) { keep_learned(d); }
             iblue_led_notice(1);
+            publish();
         }
         else if (t >= req_due_ms + POSE_WAIT_MS) {
             d->seen_seq = req_seq;

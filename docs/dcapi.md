@@ -27,6 +27,22 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 
 The ports are read from a snapshot (`iblue_dcapi_port_set()`) that `wired_port_hdl()` in `manager.c` refreshes whenever it maps Bluetooth controllers to ports, because the Maple interrupt that answers cannot call the Bluetooth code. So a change shows up when that function next runs.
 
+## Joy-Con motion (`motion.*`, 2026-11-18)
+
+Only present in a build with Joy-Con motion (`CONFIG_BLUERETRO_IBLUE_MOTION`, `docs/samba-de-amigo.md`): the firmware reports it at start, then `hello.caps` reads `api,net,port,game,motion` (bit 7, `0xAB`) and the keys exist; before that they answer `err ... unavailable not set`.
+
+| Key / call | |
+|---|---|
+| `motion.mode` | `off` or `on`; `set` is queued and kept in flash at once (not part of `sys.commit`). The Joy-Cons have to connect again for it to take effect (the IMU is switched on during their start-up) |
+| `motion.state` | read only: `off`, `waiting` (on, no Joy-Con followed), `uncalibrated` (a followed Joy-Con has no forward yet), `ready` |
+| `motion.left` `motion.right` | read only: `absent`, `uncalibrated`, `ready` |
+| `call motion.pose.forward\|up\|down\|out [seconds]` | take a calibration pose after `seconds` (0 to 30, default 5) with every followed Joy-Con held still; answers `ok <call> started`, `err ... unavailable motion mode is off`, or `err ... bad seconds 0 to 30`. The adapter LED blinks once when the pose was taken, three times if it was not still. Follow the state keys to see the result |
+| `call motion.reset` | forget the learned pointing directions and ranges |
+
+The finer settings (range, shake strength, smoothing) stay on the web page and BLE commands `0x4B`-`0x4F` (which collide with the port status of DreamDash: T-2).
+
+**Not tried on hardware; the engine side is host-tested** (`test_dcapi.c`). The state is a snapshot set from normal code (`iblue_motion_ctl.c` calls `iblue_dcapi_motion_set()`), like the ports, because the engine runs in the Maple interrupt.
+
 ## Over Maple (command `0x22`)
 
 Sent to the **memory card unit** of the port (the same unit that takes the game id), payload: the function code of the memory card (`0x00000002`), then the request text. Like all text on the bus it is **word-reversed** (every 4 bytes) and NUL padded to whole words, at most 252 bytes. The adapter answers in the same exchange with a data frame (`0x08`): the function code, then the answer text the same way (at most 400 bytes, cut at a line end). A request with another function code or no text is acknowledged only.
