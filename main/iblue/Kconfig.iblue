@@ -108,6 +108,18 @@ menu "iBlueControlMod and Dreamcast extras"
             VMU (never stored as VMU data). It becomes BlueRetro's game id, so blueretro.io can save
             a configuration per game. Needs the VMU accessory on. See docs/led-and-gameid.md.
 
+    config BLUERETRO_BRCTL
+        bool "Dreamcast: BlueRetro control channel over the Maple bus (brctl)"
+        depends on BLUERETRO_SYSTEM_DC
+        default y if BLUERETRO_HW_IBLUECONTROLMOD
+        help
+            Answer BLOCK_READ / BLOCK_WRITE / SET_CONDITION frames with the
+            private BlueRetro function code on the controller main unit, so
+            Dreamcast software (e.g. openMenu) can read status, read/write the
+            full BlueRetro config, set the LED, start/stop pairing, save and
+            load profiles and per-game configurations, and switch the Joy-Con
+            motion mode. See main/iblue/brctl_proto.h.
+
     config BLUERETRO_IBLUE_MOTION
         bool "iBlueControlMod: Joy-Con motion as maracas position and shake"
         depends on BLUERETRO_SYSTEM_DC && BLUERETRO_HW_IBLUECONTROLMOD && BLUERETRO_IBLUE_RGB_LED

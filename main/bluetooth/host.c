@@ -32,6 +32,7 @@
 #include "adapter/wired/wired.h"
 #include "adapter/hid_parser.h"
 #include "bluetooth/hidp/ps.h"
+#include "iblue/brctl.h"
 
 #define BT_TX 0
 #define BT_RX 1
@@ -249,6 +250,11 @@ static void bt_fb_task(void *param) {
                         config_init(GAMEID_CFG);
                     }
                     break;
+#ifdef CONFIG_BLUERETRO_BRCTL
+                case FB_TYPE_BRCTL:
+                    brctl_exec(fb_data);
+                    break;
+#endif
                 default:
                     break;
             }

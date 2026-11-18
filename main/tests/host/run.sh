@@ -3,6 +3,12 @@
 set -e
 d=$(cd "$(dirname "$0")" && pwd)
 out=$(mktemp -d)
+root=$(cd "$d/../../.." && pwd)
+cmp "$root/main/iblue/brctl_proto.h" "$root/dc/brctl/brctl_proto.h" || {
+    echo "main/iblue/brctl_proto.h and dc/brctl/brctl_proto.h differ: copy the first over the second" >&2
+    exit 1
+}
+echo "brctl_proto.h copies match"
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/anim" "$d/test_anim.c" "$d/../../iblue/iblue_anim_curve.c" -lm
 "$out/anim"
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/tap" "$d/test_tap.c" "$d/../../iblue/iblue_tap.c"

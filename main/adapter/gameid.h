@@ -11,5 +11,7 @@
 int32_t gid_update(struct raw_fb *fb_data);
 int32_t gid_update_sys(struct raw_fb *fb_data);
 char *gid_get(void);
+/* Set the id from a string (openMenu, through brctl). Returns 1 if it changed. */
+int32_t gid_set(const char *id);
 
 #endif /* _GAMEID_H_ */

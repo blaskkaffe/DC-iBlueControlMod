@@ -37,6 +37,7 @@
 #include "iblue/iblue_gesture.h"
 #include "iblue/iblue_gameid_ctl.h"
 #include "iblue/iblue_motion_ctl.h"
+#include "iblue/brctl.h"
 #include "iblue/iblue_tap.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
@@ -148,6 +149,17 @@ static const sys_mgr_cmd_t sys_mgr_cmds[] = {
     sys_mgr_wired_reset,
 };
 
+static inline uint32_t sense_port_is_empty(uint32_t index);
+
+/* 1 when the board senses a physical controller in this output port */
+uint32_t sys_mgr_port_plugged(uint32_t index) {
+    return index < hw_config.port_cnt && !sense_port_is_empty(index);
+}
+
+bool sys_mgr_console_on(void) {
+    return sys_mgr_get_power() != 0;
+}
+
 static inline uint32_t sense_port_is_empty(uint32_t index) {
 #ifdef CONFIG_BLUERETRO_HW2
     if (hw_config.ports_sense_input_polarity) {
@@ -209,6 +221,12 @@ void sys_mgr_pair_window_open(void) {
 
 bool sys_mgr_pairing_allowed(void) {
     return esp_timer_get_time() < pair_window_end_us;
+}
+
+uint16_t sys_mgr_pair_window_left_s(void) {
+    int64_t left = pair_window_end_us - esp_timer_get_time();
+
+    return left > 0 ? (uint16_t)(left / 1000000) : 0;
 }
 
 static void pair_window_check(void) {
@@ -678,6 +696,11 @@ static void sys_mgr_task(void *arg) {
                 power_on_hdl();
             }
         }
+#ifdef CONFIG_BLUERETRO_BRCTL
+        if ((cnt % 10) == 0) {
+            brctl_status_update();
+        }
+#endif
         cnt++;
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
@@ -1050,6 +1073,9 @@ void sys_mgr_init(uint32_t package) {
     iblue_gesture_init();
     iblue_gameid_ctl_init();
     iblue_motion_ctl_init();
+#endif
+#ifdef CONFIG_BLUERETRO_BRCTL
+    brctl_init();
 #endif
 
     /* If boot switch pressed at boot, trigger system on and goes to deep sleep */

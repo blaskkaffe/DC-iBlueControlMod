@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "sdkconfig.h"
+#include "iblue/brctl_proto.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 
@@ -34,6 +35,15 @@ uint32_t iblue_profile_load(uint32_t slot);
 uint32_t iblue_profile_delete(uint32_t slot);
 /* The next used slot after the one loaded last, wrapping round */
 uint32_t iblue_profile_next(void);
+
+/* For openMenu (brctl): which slots are used and the output mode and accessories of the first port in each */
+void iblue_profile_list(struct brctl_profiles *out);
+
+/* Per game configuration: /fs/DC_<id> is the game's whole configuration (openMenu sends the id with brctl) */
+uint32_t iblue_game_set(const char *id);   /* BRCTL_RES_* */
+uint32_t iblue_game_save(void);
+uint32_t iblue_game_delete(void);
+void iblue_game_info(struct brctl_game *out);
 
 #endif
 

@@ -23,6 +23,7 @@
 #include "macro.h"
 #include "bluetooth/host.h"
 #include "tests/cmds.h"
+#include "iblue/input.h"
 
 const uint32_t hat_to_ld_btns[16] = {
     BIT(PAD_LD_UP), BIT(PAD_LD_UP) | BIT(PAD_LD_RIGHT), BIT(PAD_LD_RIGHT), BIT(PAD_LD_DOWN) | BIT(PAD_LD_RIGHT),
@@ -427,6 +428,8 @@ void adapter_bridge(struct bt_data *bt_data) {
         TESTS_CMDS_LOG("\"generic_input\": {");
         adapter_debug_wireless_print(ctrl_input);
 #endif
+        iblue_input(bt_data->base.pids->out_idx, ctrl_input);
+
         if (wired_adapter.system_id != WIRED_AUTO) {
             if (wired_meta_init(ctrl_output)) {
                 /* Unsupported system */

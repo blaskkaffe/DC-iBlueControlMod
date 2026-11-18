@@ -3,7 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
+#include <sys/stat.h>
+#include "adapter/adapter.h"
 #include "adapter/config.h"
+#include "adapter/gameid.h"
 #include "iblue/iblue_profile.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
@@ -146,6 +150,95 @@ uint32_t iblue_profile_next(void) {
         }
     }
     return IBLUE_PROF_EMPTY;
+}
+
+void iblue_profile_list(struct brctl_profiles *out) {
+    memset(out, 0, sizeof(*out));
+    out->magic = BRCTL_PROFILES_MAGIC;
+    for (uint32_t i = 0; i < BRCTL_PROFILES && i < IBLUE_PROFILES; i++) {
+        struct profile_head head;
+        char path[24];
+        FILE *f;
+
+        path_of(i, path, sizeof(path));
+        f = fopen(path, "rb");
+        if (f == NULL) {
+            continue;
+        }
+        if (fread(&head, sizeof(head), 1, f) == 1 && head.magic == PROFILE_MAGIC) {
+            uint8_t modes[2] = {0, 0};
+
+            out->used[i] = 1;
+            if (fseek(f, (long)(sizeof(head) + offsetof(struct config, out_cfg)), SEEK_SET) == 0 &&
+                    fread(modes, sizeof(modes), 1, f) == 1) {
+                out->dev_mode[i] = modes[0];
+                out->acc_mode[i] = modes[1];
+            }
+        }
+        fclose(f);
+    }
+}
+
+/* ---- Games ---- */
+
+static bool game_file_exists(const char *full) {
+    struct stat st;
+    char path[32];
+
+    snprintf(path, sizeof(path), "/fs/%s", full);
+    return full[0] && stat(path, &st) == 0;
+}
+
+uint32_t iblue_game_set(const char *id) {
+    char full[24] = "";
+    size_t n = strnlen(id, BRCTL_GAME_ID_MAX + 1);
+
+    if (n > BRCTL_GAME_ID_MAX) {
+        return BRCTL_RES_BAD;
+    }
+    for (size_t i = 0; i < n; i++) {
+        char c = id[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_')) {
+            return BRCTL_RES_BAD; /* the id becomes part of a file name */
+        }
+    }
+    if (n) {
+        snprintf(full, sizeof(full), "DC_%s", id);
+    }
+    gid_set(full);
+    config_init(GAMEID_CFG); /* the game's file if it has one, else the normal configuration */
+    return BRCTL_RES_OK;
+}
+
+uint32_t iblue_game_save(void) {
+    if (!gid_get()[0]) {
+        return BRCTL_RES_NO_GAME;
+    }
+    config_update(GAMEID_CFG);
+    return game_file_exists(gid_get()) ? BRCTL_RES_OK : BRCTL_RES_FAILED;
+}
+
+uint32_t iblue_game_delete(void) {
+    char path[32];
+
+    if (!gid_get()[0]) {
+        return BRCTL_RES_NO_GAME;
+    }
+    snprintf(path, sizeof(path), "/fs/%s", gid_get());
+    remove(path);
+    config_init(DEFAULT_CFG);
+    return BRCTL_RES_OK;
+}
+
+void iblue_game_info(struct brctl_game *out) {
+    const char *full = gid_get();
+
+    memset(out, 0, sizeof(*out));
+    if (full[0]) {
+        out->flags = BRCTL_GAME_SET | (game_file_exists(full) ? BRCTL_GAME_HAS_OWN : 0) |
+            (config_get_src() == GAMEID_CFG ? BRCTL_GAME_IN_USE : 0);
+        strncpy(out->id, strncmp(full, "DC_", 3) == 0 ? full + 3 : full, sizeof(out->id) - 1);
+    }
 }
 
 #endif /* CONFIG_BLUERETRO_IBLUE_RGB_LED */

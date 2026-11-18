@@ -395,6 +395,7 @@ enum {
     FB_TYPE_MEM_WRITE,
     FB_TYPE_GAME_ID,
     FB_TYPE_SYS_ID,
+    FB_TYPE_BRCTL,
 };
 
 enum {

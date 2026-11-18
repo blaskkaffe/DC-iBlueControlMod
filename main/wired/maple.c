@@ -19,6 +19,7 @@
 #include "system/intr.h"
 #include "iblue/iblue_gameid.h"
 #include "maple.h"
+#include "iblue/brctl.h"
 
 #define ID_CTRL    0x00000001
 #define ID_VMU_MEM 0x00000002
@@ -520,6 +521,37 @@ maple_end:
                                 dc_gen_turbo_mask(&wired_adapter.data[port]);
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 break;
+#ifdef CONFIG_BLUERETRO_BRCTL
+                            /* BlueRetro control channel (private function code, see brctl_proto.h).
+                             * Frames with bit loss are ignored: the host times out and retries. */
+                            case CMD_BLOCK_READ:
+                                if (!bad_frame && pkt.len >= 3 && pkt.data32[0] == BRCTL_FUNC) {
+                                    uint32_t param = pkt.data32[1];
+                                    uint32_t n = brctl_read(param, pkt.data32[2], (void *)&pkt.data32[2]);
+                                    pkt.cmd = CMD_DATA_TX;
+                                    pkt.len = 2 + (n + 3) / 4;
+                                    pkt.data32[0] = BRCTL_FUNC;
+                                    pkt.data32[1] = param;
+                                    maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+                                }
+                                break;
+                            case CMD_BLOCK_WRITE:
+                                if (!bad_frame && pkt.len >= 2 && pkt.data32[0] == BRCTL_FUNC) {
+                                    bool ok = brctl_write(pkt.data32[1], (void *)&pkt.data32[2], (pkt.len - 2) * 4);
+                                    pkt.cmd = ok ? CMD_ACK : BRCTL_RSP_FILE_ERROR;
+                                    pkt.len = 0;
+                                    maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+                                }
+                                break;
+                            case CMD_SET_CONDITION:
+                                if (!bad_frame && pkt.len >= 2 && pkt.data32[0] == BRCTL_FUNC) {
+                                    brctl_queue_op(&pkt.data32[1], pkt.len - 1);
+                                    pkt.cmd = CMD_ACK;
+                                    pkt.len = 0;
+                                    maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+                                }
+                                break;
+#endif
                             default:
                                 ets_printf("%02X: Unk cmd: 0x%02X\n", dst, cmd);
                                 break;

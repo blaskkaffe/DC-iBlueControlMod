@@ -70,6 +70,8 @@ set(srcs
     "iblue/iblue_gameid.c"
     "iblue/iblue_gameid_ctl.c"
     "iblue/iblue_motion.c"
+    "iblue/brctl.c"
+    "iblue/input.c"
     "iblue/iblue_motion_ctl.c"
     "iblue/iblue_gesture.c"
     "iblue/iblue_tap.c"
