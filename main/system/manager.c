@@ -125,7 +125,8 @@ static uint8_t current_pulse_led = LED_P1_PIN;
 static uint8_t err_led_pin;
 static uint8_t power_off_pin = POWER_OFF_PIN;
 static uint8_t led_init_cnt = 1;
-static uint16_t port_state = 0;
+#define PORT_STATE_UNSET 0xFFFF /* no port set applied yet: the next wired_port_hdl() applies one, even an empty one */
+static uint16_t port_state = PORT_STATE_UNSET;
 static RingbufHandle_t cmd_q_hdl = NULL;
 static uint32_t chip_package = EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6;
 static bool factory_reset = false;
@@ -534,10 +535,22 @@ static void wired_port_hdl(void) {
         }
     }
 #endif
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    /* A physical controller always has its port: never answer the console there, also not for a port that a Bluetooth pad's
+     * mapping points at (adapter_get_out_mask() above does not look at the sense inputs). */
+    for (uint32_t p = 0; p < hw_config.port_cnt; p++) {
+        if (!sense_port_is_empty(p)) {
+            port_mask &= ~BIT(p);
+        }
+    }
+#endif
     if (hw_config.hotplug) {
         if (port_state != port_mask) {
             update++;
         }
+    }
+    if (port_state == PORT_STATE_UNSET) {
+        update++; /* the first run after start-up or a wired reset: the driver's own start-up claim must be replaced */
     }
     if (update && !mc_get_state()) {
         printf("# %s: Update ports state: %04X\n", __FUNCTION__, port_mask);
@@ -841,7 +854,7 @@ static void IRAM_ATTR sys_mgr_wired_reinit_task(void) {
 static void sys_mgr_wired_reset(void) {
     init_app_cpu_baremetal();
     start_app_cpu(sys_mgr_wired_reinit_task);
-    port_state = 0;
+    port_state = PORT_STATE_UNSET;
 }
 
 void sys_mgr_cmd(uint8_t cmd) {

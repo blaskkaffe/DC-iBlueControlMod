@@ -827,7 +827,13 @@ void maple_init(uint32_t package)
     }
 #endif
 #ifndef CONFIG_BLUERETRO_WIRED_TRACE
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    /* No port until the system manager has looked at the sense inputs and the Bluetooth pads (wired_port_hdl): claiming all
+     * four here answered the console on every port, so a physical controller collided with the adapter until a pad connected */
+    maple_port_cfg(0x0);
+#else
     maple_port_cfg(0xF);
+#endif
 #else
     maple_port_cfg(0x1);
 #endif
