@@ -2,6 +2,7 @@
 
 | File | Branch / commit | Status |
 |---|---|---|
+| `BlueRetro_iBlueControlMod_unified_hw2_6c32142.bin` | `unified` @ 6c32142 (hw2 `dreamcast_iblue`, no hardware tag: the iBlueControlMod pinout) | Newest: DC API Joy-Con motion keys and live heights, the DC API on the controller unit in every output mode. Compiles; not tried on an adapter or a console. |
 | `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` | `unified` @ 0c440c8 (hw2 `dreamcast_iblue`, built with ESP-IDF 030c995, no hardware tag) | Boots in the ESP32 emulator, but has not been tried on an adapter, a console or with Samba de Amigo |
 
 The baseline tested on hardware is still `../BlueRetro_iBlueControlMod_RGB_v1.bin`. Hold the button for 30 s to return to the vendor firmware.
