@@ -350,6 +350,21 @@ int main(void) {
     CHECK(nreq == 3);
     SAME(ask("dc1\ncall motion.reset\n"), "dc1\nok motion.reset done\n");
     CHECK(nreq == 4 && reqs[3].op == IBLUE_CFG_MOTION_RESET);
+    /* the live height of each Joy-Con: only while that side is calibrated */
+    iblue_dcapi_motion_set(1, 2, 1);
+    iblue_dcapi_motion_height(0, 37);
+    iblue_dcapi_motion_height(1, -12);
+    SAME(ask("dc1\nget motion.left.height\nget motion.right.height\n"), "dc1\nok motion.left.height 37\nerr motion.right.height unavailable not set\n");
+    iblue_dcapi_motion_set(1, 2, 2);
+    SAME(ask("dc1\nget motion.left.height\nget motion.right.height\n"), "dc1\nok motion.left.height 37\nok motion.right.height -12\n");
+    iblue_dcapi_motion_height(0, 0);
+    iblue_dcapi_motion_height(1, 200); /* clamped */
+    SAME(ask("dc1\nget motion.*.height\n"), "dc1\nerr motion.*.height unknown\n"); /* a prefix has no star in the middle */
+    SAME(ask("dc1\nget motion.left.*\nget motion.right.h*\n"), "dc1\nok motion.left.height 0\nok motion.right.height 90\n");
+    iblue_dcapi_motion_height(1, -300);
+    SAME(ask("dc1\nget motion.right.height\n"), "dc1\nok motion.right.height -90\n");
+    SAME(ask("dc1\nset motion.left.height 5\n"), "dc1\nerr motion.left.height readonly\n");
+    iblue_dcapi_motion_set(1, 2, 2);
     {
         uint8_t w[24];
         iblue_dcapi_ext_caps(w);

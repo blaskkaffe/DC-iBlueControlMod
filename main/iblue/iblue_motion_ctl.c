@@ -239,6 +239,7 @@ int iblue_motion_ctl_feed(int dev, int side, const uint8_t *imu, int cal_pressed
         }
     }
 
+    iblue_dcapi_motion_height((uint8_t)(d->side < 0 ? 0 : 1), (int)lroundf(iblue_motion_elevation_deg(&d->m)));
     *x = (int16_t)lroundf(iblue_motion_x(&d->m) * 1400.0f);
     *y = (int16_t)lroundf(iblue_motion_y(&d->m) * 1400.0f);
     *shake = iblue_motion_shake(&d->m);
