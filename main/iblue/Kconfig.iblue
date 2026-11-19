@@ -127,6 +127,16 @@ menu "iBlueControlMod and Dreamcast extras"
             pointing direction into the right stick X / Y of the controller and a shake into the left
             trigger button, for Samba de Amigo (docs/samba-de-amigo.md). Calibrated with poses.
 
+    config BLUERETRO_IBLUE_VMU_CHECK
+        bool "iBlueControlMod: careful memory card (VMU): format a blank card, check writes, answer the beeper"
+        depends on BLUERETRO_SYSTEM_DC && BLUERETRO_HW_IBLUECONTROLMOD
+        default y
+        help
+            A blank memory card is formatted at start-up (programs made with KallistiOS, such as openMenu,
+            cannot format one). A write is stored only when the frame arrived intact, otherwise the Dreamcast
+            is asked to send it again. Commands for the VMU's beeper are acknowledged. A changed card is
+            written to the flash even when the notice from the Maple interrupt was lost. docs/vmu.md.
+
     config BLUERETRO_IBLUE_DC_MENU_COLORS
         bool "iBlueControlMod: PS4/PS5 light bar colours A orange, B green, C blue, D magenta"
         depends on BLUERETRO_HW_IBLUECONTROLMOD

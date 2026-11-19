@@ -14,6 +14,11 @@
 #include "system/fs.h"
 #include "config.h"
 #include "memory_card.h"
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+#include "iblue/iblue_vmu.h"
+
+_Static_assert(MC_BUFFER_BLOCK_SIZE == IBLUE_VMU_TAIL && MC_BUFFER_SIZE == IBLUE_VMU_SIZE, "the VMU formatter works on the last buffer of the card");
+#endif
 
 /* Related to bare metal hack, something goes writing there. */
 /* Workaround: Remove region from heap pool until I figure it out */
@@ -37,12 +42,25 @@ static void mc_start_update_timer(uint64_t timeout_us) {
     }
 }
 
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+/* An empty, formatted Dreamcast card in RAM (iblue_vmu.h) */
+static void mc_format(void) {
+    for (uint32_t i = 0; i < MC_BUFFER_BLOCK_CNT - 1; i++) {
+        memset(mc_buffer[i], 0, MC_BUFFER_BLOCK_SIZE);
+    }
+    iblue_vmu_format_tail(mc_buffer[MC_BUFFER_BLOCK_CNT - 1]);
+}
+#endif
+
 static int32_t mc_restore(void) {
     struct stat st;
     int32_t ret = -1;
 
     if (stat(MEMORY_CARD_FILE, &st) != 0) {
         printf("# %s: No Memory Card on FS. Creating...\n", __FUNCTION__);
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+        mc_format(); /* the buffers hold whatever was in the RAM */
+#endif
         ret = mc_store();
     }
     else {
@@ -60,9 +78,23 @@ static int32_t mc_restore(void) {
             if (count == MC_BUFFER_BLOCK_CNT) {
                 ret = 0;
                 printf("# %s: restore sucessful!\n", __FUNCTION__);
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+                /* A card that was never formatted (older firmware stored the RAM as it was): format it, as Pico2Maple does.
+                 * A formatted card, whatever is on it, is never touched. */
+                if (!iblue_vmu_is_formatted(mc_buffer[MC_BUFFER_BLOCK_CNT - 1])) {
+                    printf("# %s: the card is not formatted. Formatting...\n", __FUNCTION__);
+                    mc_format();
+                    ret = mc_store();
+                }
+#endif
             }
             else {
                 printf("# %s: restore failed! cnt: %ld File size:%ld\n", __FUNCTION__, count, st.st_size);
+#ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
+                /* A file that is too short cannot be a card (the first start was cut off): a new card instead of none */
+                mc_format();
+                ret = mc_store();
+#endif
             }
         }
     }
@@ -106,13 +138,18 @@ static int32_t mc_store_spread(void) {
             uint32_t count = 0;
             block -= 1;
 
+            /* Cleared before the copy is taken: a write of the Dreamcast that lands while the flash is busy marks the block
+             * again and it is stored once more. (It was cleared afterwards, and such a write was then never stored.) */
+            atomic_clear_bit(&mc_block_state, block);
             fseek(file, block * MC_BUFFER_BLOCK_SIZE, SEEK_SET);
             count = fwrite((void *)mc_buffer[block], MC_BUFFER_BLOCK_SIZE, 1, file);
             fclose(file);
 
             if (count == 1) {
                 ret = 0;
-                atomic_clear_bit(&mc_block_state, block);
+            }
+            else {
+                atomic_set_bit(&mc_block_state, block);
             }
 
             printf("# %s: block %ld updated cnt: %ld\n", __FUNCTION__, block, count);
@@ -120,6 +157,9 @@ static int32_t mc_store_spread(void) {
             if (mc_block_state) {
                 mc_start_update_timer(20000);
             }
+        }
+        else {
+            fclose(file); /* nothing to store: the file was left open here */
         }
     }
     return ret;
@@ -167,6 +207,14 @@ int32_t mc_init(void) {
 
 void mc_storage_update(void) {
     mc_start_update_timer(1000000);
+}
+
+/* Called regularly from a task. The Maple interrupt tells about a write with a message that can be lost (the queue is best
+ * effort); a changed card is then stored all the same, a second after it was noticed. */
+void mc_poll(void) {
+    if (mc_ready && mc_block_state && mc_timer_hdl && !esp_timer_is_active(mc_timer_hdl)) {
+        esp_timer_start_once(mc_timer_hdl, 1000000);
+    }
 }
 
 /* Assume r/w size will never cross blocks boundary */
