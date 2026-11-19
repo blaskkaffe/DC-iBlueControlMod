@@ -2,7 +2,6 @@
 
 | File | Branch / commit | Status |
 |---|---|---|
-| `BlueRetro_iBlueControlMod_unified_hw2_6c32142.bin` | `unified` @ 6c32142 (hw2 `dreamcast_iblue`, no hardware tag: the iBlueControlMod pinout) | Newest: DC API Joy-Con motion keys and live heights, the DC API on the controller unit in every output mode. Compiles; not tried on an adapter or a console. |
 | `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` | `unified` @ 0c440c8 (hw2 `dreamcast_iblue`, built with ESP-IDF 030c995, no hardware tag) | **Flashed on an adapter (2026-11-19):** boots, the LED comes on orange, a Bluetooth pad pairs and plays, rumble and VMU work. **Joy-Con motion does not work as it should:** in the maracas setup the two Joy-Cons end up on separate ports instead of being the two maracas of one port. Not tried with Samba de Amigo |
 
 Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) and `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` (the basics, see above). Hold the button for 30 s to return to the vendor firmware.
