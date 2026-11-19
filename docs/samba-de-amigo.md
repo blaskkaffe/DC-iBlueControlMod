@@ -1,6 +1,6 @@
 # Samba de Amigo maracas: concept
 
-Goal: play Samba de Amigo with two Wii remotes or two Joy-Cons (or one DualShock / DualSense) instead of the real maracas, by sensing the angle and shaking of each controller and reporting it to the Dreamcast as a maracas controller. Status: **maracas output mode (sticks) and Joy-Con motion are in `unified` and built with ESP-IDF (2026-11-09, test image in `firmware/test/`); neither is tried with the game or on hardware; Wii remote motion is not built.** Written 2026-11-01. Over the DC API the modes are `racing` and `maracas` (`set port.A.mode maracas`).
+Goal: play Samba de Amigo with two Wii remotes or two Joy-Cons (or one DualShock / DualSense) instead of the real maracas, by sensing the angle and shaking of each controller and reporting it to the Dreamcast as a maracas controller. Status: **maracas output mode (sticks) and Joy-Con motion are in `unified` and built with ESP-IDF (2026-11-09, test image in `firmware/test/`); neither is tried with the game; Wii remote motion is not built.** On hardware (build 0c440c8, 2026-11-19): **two Joy-Cons in maracas mode end up on separate ports** instead of being the left and right maraca of one port (see Joy-Cons, Known problem). Written 2026-11-01. Over the DC API the modes are `racing` and `maracas` (`set port.A.mode maracas`).
 
 ## What the Dreamcast sees (Sega's maracas spec)
 
@@ -58,6 +58,7 @@ Joy-Cons are the best source: each has a 3-axis accelerometer and a gyro, and tw
 - They come out as the Joy-Con's **right stick** (X, Y) and its **left trigger button** (the shake), in `sw.c`. The preset "Samba de Amigo (Joy-Con motion)" maps the left Joy-Con (first input) to the left maraca and the right Joy-Con (second input, destination -1) to the right maraca; Y is turned around (up = 255), shake = B / A, ZL = C, Plus / ZR = Start. Connect the left Joy-Con first.
 - **Calibration by poses** (all held still): *Forward* (pointing at the TV, level, both controllers: sets the middle and the heading zero; also by holding Minus (left) or Home (right) for a second), *Up* and *Down* (learns which of the controller's axes is the long axis: kept over restarts per side), *Out* (turn outwards to its own side, level: sets the sideways range and which way is left). The web page asks for a pose after 5 s; the adapter LED blinks once when it was taken and three times when the controller was not still. Live values per Joy-Con are shown on the page.
 - BLE commands 0x4B (get settings, two parts), 0x4C (set), 0x4D (pose, delay), 0x4E (status), 0x4F (forget the learned axes).
+- **Known problem (hardware, build 0c440c8, 2026-11-19):** with two Joy-Cons in maracas mode they end up on separate ports; they should both feed one port (left Joy-Con = left maraca, right = right maraca). Not investigated yet.
 - The unknowns: the Joy-Cons' axis directions are learned by the poses rather than assumed; how the game turns Y into its three heights and whether it reads X is still only known by trying.
 
 ## Set up by the game (2026-11-10)

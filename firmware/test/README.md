@@ -1,11 +1,21 @@
-# Test firmware (not tested on hardware yet)
+# Test firmware
 
 | File | Branch / commit | Status |
 |---|---|---|
 | `BlueRetro_iBlueControlMod_unified_hw2_6c32142.bin` | `unified` @ 6c32142 (hw2 `dreamcast_iblue`, no hardware tag: the iBlueControlMod pinout) | Newest: DC API Joy-Con motion keys and live heights, the DC API on the controller unit in every output mode. Compiles; not tried on an adapter or a console. |
-| `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` | `unified` @ 0c440c8 (hw2 `dreamcast_iblue`, built with ESP-IDF 030c995, no hardware tag) | Boots in the ESP32 emulator, but has not been tried on an adapter, a console or with Samba de Amigo |
+| `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` | `unified` @ 0c440c8 (hw2 `dreamcast_iblue`, built with ESP-IDF 030c995, no hardware tag) | **Flashed on an adapter (2026-11-19):** boots, the LED comes on orange, a Bluetooth pad pairs and plays, rumble and VMU work. **Joy-Con motion does not work as it should:** in the maracas setup the two Joy-Cons end up on separate ports instead of being the two maracas of one port. Not tried with Samba de Amigo |
 
-The baseline tested on hardware is still `../BlueRetro_iBlueControlMod_RGB_v1.bin`. Hold the button for 30 s to return to the vendor firmware.
+Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) and `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` (the basics, see above). Hold the button for 30 s to return to the vendor firmware.
+
+## Results on hardware (0c440c8, 2026-11-19)
+
+| Check | Result |
+|---|---|
+| Install over OTA and boot, LED orange | works |
+| Bluetooth pad pairs and plays | works |
+| Rumble and VMU | work |
+| Two Joy-Cons in maracas mode (Joy-Con motion) | **does not work as it should**: the two Joy-Cons land on separate ports; they should be the left and right maraca of one port |
+| LED gestures, game ID, VMU save during a game ID, Samba de Amigo | not reported yet |
 
 ## What's in it, compared with v1
 

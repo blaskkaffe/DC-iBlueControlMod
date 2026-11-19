@@ -2,6 +2,15 @@
 
 Newest first. "Done" is what actually happened; "To do" is what is still open.
 
+## 2026-11-19: build 0c440c8 flashed on an iBlueControlMod
+
+**Done**
+- `firmware/test/BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` flashed over OTA by the owner: boots, LED orange, a Bluetooth pad pairs and plays, rumble and VMU work. The first `unified` build verified on hardware.
+
+**To do**
+- Joy-Con motion: two Joy-Cons in maracas mode end up on separate ports; they should be the left and right maraca of one port. Not investigated yet.
+- Not reported yet: LED gestures, game ID, VMU save during a game ID, Samba de Amigo itself.
+
 ## 2026-11-09: first ESP-IDF build of `unified`; Samba de Amigo ported; DreamDash port status on 0x50
 
 **Done**
