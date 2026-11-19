@@ -29,6 +29,7 @@ DSTR(S_RANGE_MODE, " range normal dual keyboard mouse racing or maracas");
 DSTR(S_RANGE_ACC, " range none vmu rumble or both");
 DSTR(S_RANGE_LAYOUT, " range standard or all");
 DSTR(S_MAPDOT, ".map.");
+DSTR(S_DASH, "-"); /* in RAM like every text here: the Maple interrupt reads it, and flash can be busy then */
 DSTR(S_YES, "yes");
 DSTR(S_NO, "no");
 DSTR(S_DONE, "done");
@@ -208,7 +209,7 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
                     return 1;
                 }
                 if (v < 0) {
-                    o_mem(o, "-", 1);
+                    o_mem(o, S_DASH, 1);
                     v = -v;
                 }
                 do {
