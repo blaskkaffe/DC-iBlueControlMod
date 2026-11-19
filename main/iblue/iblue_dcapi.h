@@ -19,6 +19,7 @@
  *    sys.unsaved       yes | no: a change is waiting for call sys.commit.   call sys.commit stores, call sys.revert loads the stored one
  *    motion.mode       off | on: Joy-Con motion (the position and shake of a Joy-Con as maracas), kept at once; the Joy-Cons connect again
  *    motion.state      off | waiting | uncalibrated | ready (read only)     motion.left / motion.right  absent | uncalibrated | ready
+ *    motion.left.height / motion.right.height  degrees above (+) or below (-) level, -90..90, while that side is calibrated (live)
  *    call motion.pose.forward|up|down|out [seconds]    take a calibration pose after the seconds (default 5, 0 to 30), Joy-Cons held still
  *    call motion.reset                                  forget the learned pointing directions and ranges
  *    port.<A-D>.name   what the Dreamcast sees on the port (read only)
@@ -121,6 +122,9 @@ size_t iblue_dcapi_port_status(uint8_t *out);
 /* Joy-Con motion (docs/dcapi.md, keys motion.*): mode 0/1; left / right: 0 no Joy-Con followed, 1 followed, forward not set, 2 calibrated.
  * Normal code calls it whenever one of them changes (and once at start: that is what makes the keys exist). */
 void iblue_dcapi_motion_set(uint8_t mode, uint8_t left, uint8_t right);
+/* The height of the Joy-Con of a side (0 left, 1 right) in degrees above (+) or below (-) level, from the motion code at every report;
+ * keys motion.left.height / motion.right.height while that side is calibrated (forward set). */
+void iblue_dcapi_motion_height(uint8_t side, int degrees);
 
 void iblue_dcapi_ble_write(const uint8_t *data, size_t len);
 size_t iblue_dcapi_ble_read(uint8_t *out, size_t max);
@@ -133,6 +137,7 @@ size_t iblue_dcapi_ble_read(uint8_t *out, size_t max);
 #define iblue_dcapi_port_set(port, state, dev_mode, acc_mode, bt_type, bt_subtype)
 #define iblue_dcapi_port_layout(port, layout)
 #define iblue_dcapi_motion_set(mode, left, right)
+#define iblue_dcapi_motion_height(side, degrees)
 #endif
 
 #endif /* _IBLUE_DCAPI_H_ */

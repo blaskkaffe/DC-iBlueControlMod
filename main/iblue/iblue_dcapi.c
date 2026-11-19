@@ -89,15 +89,16 @@ static DRAM_ATTR const char dc_names[MODE_COUNT][24] = {"Dreamcast Controller", 
     "Racing Controller", "Maracas Controller"};
 #define PORT_ID_BASE 100 /* key ids of the port keys: 100 + port * 8 + field */
 
-enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_MOTION_MODE, K_MOTION_STATE, K_MOTION_LEFT, K_MOTION_RIGHT, K_COUNT };
+enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_MOTION_MODE, K_MOTION_STATE, K_MOTION_LEFT, K_MOTION_RIGHT, K_MOTION_LH, K_MOTION_RH, K_COUNT };
 #define K_HELLO_LAST K_CAPS
 static DRAM_ATTR const struct {
-    char name[16];
+    char name[24];
     uint8_t id;
 } keytab[K_COUNT] = {
     {"hello.kind", K_KIND}, {"hello.name", K_NAME}, {"hello.version", K_VERSION}, {"hello.api", K_API},
     {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET}, {"sys.unsaved", K_UNSAVED}, {"sys.store", K_STORE},
     {"motion.mode", K_MOTION_MODE}, {"motion.state", K_MOTION_STATE}, {"motion.left", K_MOTION_LEFT}, {"motion.right", K_MOTION_RIGHT},
+    {"motion.left.height", K_MOTION_LH}, {"motion.right.height", K_MOTION_RH},
 };
 
 #define VERSION_MAX 32
@@ -107,6 +108,7 @@ static DRAM_ATTR volatile uint8_t unsaved; /* a live change waits for sys.commit
 /* Joy-Con motion (normal code sets it, iblue_dcapi_motion_set()): the firmware has it, mode on, and per side (left, right) 0 no
  * Joy-Con followed, 1 followed but forward not set, 2 followed and calibrated */
 static DRAM_ATTR volatile uint8_t motion_avail, motion_mode, motion_pad[2];
+static DRAM_ATTR volatile int8_t motion_height[2]; /* degrees above (+) or below (-) level of each followed Joy-Con */
 static DRAM_ATTR volatile uint8_t port_cnt;
 static DRAM_ATTR volatile uint8_t port_state[IBLUE_DCAPI_PORTS], port_mode[IBLUE_DCAPI_PORTS], port_acc[IBLUE_DCAPI_PORTS];
 static DRAM_ATTR volatile uint8_t port_bt_type[IBLUE_DCAPI_PORTS], port_bt_sub[IBLUE_DCAPI_PORTS];
@@ -190,8 +192,33 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
         case K_MOTION_STATE:
         case K_MOTION_LEFT:
         case K_MOTION_RIGHT:
+        case K_MOTION_LH:
+        case K_MOTION_RH:
             if (!motion_avail) {
                 return 1;
+            }
+            if (id == K_MOTION_LH || id == K_MOTION_RH) {
+                /* the height in degrees, only while a Joy-Con of that side is followed and has a forward (no libc: digits by hand) */
+                int side = id == K_MOTION_RH ? 1 : 0;
+                int v = motion_height[side];
+                char d[4];
+                int n = 0;
+
+                if (motion_pad[side] < 2) {
+                    return 1;
+                }
+                if (v < 0) {
+                    o_mem(o, "-", 1);
+                    v = -v;
+                }
+                do {
+                    d[n++] = (char)('0' + v % 10);
+                    v /= 10;
+                } while (v && n < 3);
+                while (n) {
+                    o_mem(o, &d[--n], 1);
+                }
+                return 0;
             }
             if (id == K_MOTION_MODE) {
                 o_str(o, motion_mode ? S_ON : S_OFF);
@@ -982,6 +1009,12 @@ void iblue_dcapi_motion_set(uint8_t mode, uint8_t left, uint8_t right) {
     motion_pad[0] = left > 2 ? 2 : left;
     motion_pad[1] = right > 2 ? 2 : right;
     motion_avail = 1;
+}
+
+void iblue_dcapi_motion_height(uint8_t side, int degrees) {
+    if (side < 2) {
+        motion_height[side] = (int8_t)(degrees > 90 ? 90 : (degrees < -90 ? -90 : degrees));
+    }
 }
 
 void IRAM_ATTR iblue_dcapi_ext_caps(uint8_t *wire24) {

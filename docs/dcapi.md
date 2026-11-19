@@ -37,6 +37,7 @@ Only present in a build with Joy-Con motion (`CONFIG_BLUERETRO_IBLUE_MOTION`, `d
 | `motion.state` | read only: `off`, `waiting` (on, no Joy-Con followed), `uncalibrated` (a followed Joy-Con has no forward yet), `ready` |
 | `motion.left` `motion.right` | read only: `absent`, `uncalibrated`, `ready` |
 | `call motion.pose.forward\|up\|down\|out [seconds]` | take a calibration pose after `seconds` (0 to 30, default 5) with every followed Joy-Con held still; answers `ok <call> started`, `err ... unavailable motion mode is off`, or `err ... bad seconds 0 to 30`. The adapter LED blinks once when the pose was taken, three times if it was not still. Follow the state keys to see the result |
+| `motion.left.height` `motion.right.height` | read only, live: how far the Joy-Con of that side points above (+) or below (-) level, whole degrees -90 to 90 (the sideways turn is not reported). Only while that side is calibrated (forward set), else `err ... unavailable not set`. Changes with every report (60 times a second at most); a screen polls it a few times a second to move the arms of the calibration man |
 | `call motion.reset` | forget the learned pointing directions and ranges |
 
 The finer settings (range, shake strength, smoothing) stay on the web page and BLE commands `0x4B`-`0x4F` (which collide with the port status of DreamDash: T-2).
