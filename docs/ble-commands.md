@@ -17,7 +17,7 @@ Why this exists: two branches and one other repository each picked `0x4B` (Joy-C
 | **0x47-0x4A** | LED / boot animation settings: get, set, play now, defaults | **built** (merged from `claude/integration`, 2026-11-09; builds in CI for hw2 dreamcast_iblue, not tried on hardware) | |
 | **0x4B-0x4F** | Joy-Con motion (maracas): get settings, set settings, pose, status, forget calibration | **built** (merged from `claude/integration`, 2026-11-09; builds in CI for hw2 dreamcast_iblue, not tried on hardware) | |
 | **0x50** | `GET_PORT_STATUS` (read only; answer below) | **built** (with `CONFIG_BLUERETRO_IBLUE_DCAPI`), not tried on hardware | DC-DreamDash `claude/iblue-ports` used `0x4B` for it; moved to `0x50` there too (2026-11-09) |
-| **0x51** | `API`: the DC API text tunnel. Write `0x51`, a flags byte (bit 0 = first chunk, bit 1 = last chunk), then up to 20 bytes of request text; after the last chunk read: byte 0 = 1 when more of the answer follows (read again), 0 = last chunk, then up to 22 bytes of answer text. See [dcapi.md](dcapi.md) | **built** (`CONFIG_BLUERETRO_IBLUE_DCAPI`), host-tested engine, not tried on hardware | |
+| ~~0x51~~ | was the DC API over Bluetooth, for DreamPi / DC-DreamDash | **removed** 2026-11-19 (the DreamPi link was dropped); stays unused | |
 | **0x52-0x59** | more port / status commands | **reserved** | |
 | 0x5A | BlueRetro: OTA end | yes | upstream |
 | 0xA5, 0xDE | BlueRetro: OTA start, OTA abort | yes | upstream |
@@ -34,15 +34,18 @@ Numbers not listed (0x08-0x0F, 0x15-0x36, 0x3A-0x3F, 0x5B-0xA4, 0xA6-0xDD, 0xDF-
 | 3 | 0x08 | LED / animation settings (0x47-0x4A) | **built** (merged 2026-11-09) |
 | 4 | 0x10 | Joy-Con motion (0x4B-0x4F) | **built** (merged 2026-11-09) |
 | **5** | **0x20** | **port status (0x50)** | built, not tried on hardware |
-| **6** | 0x40 | the DC API tunnel (0x51) | built, not tried on hardware |
+| 6 | 0x40 | was the DC API tunnel (0x51) | **removed** 2026-11-19, stays unused |
 | 7 | 0x80 | reserved | |
 
 A client must check the bit before using a command and must ignore bits it does not know.
 
-## `GET_PORT_STATUS` (0x50), as DC-DreamDash's module expects it
+## `GET_PORT_STATUS` (0x50)
+
+Used by the web config (Controllers). It was first written for DC-DreamDash's iBlue module, which was removed on 2026-11-19 with the DreamPi link.
 
 Read only. Answer: `[count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]`, five bytes per port. `state`: 0 empty, 1 Bluetooth (a controller with finished HID setup is mapped to the port), 2 wired (the port's sense line is pulled to ground, the same test the firmware uses to skip that port when it hands out Bluetooth slots). `dev_mode` and `acc_mode` are the configured output mode and accessory mode (BlueRetro's `out_cfg`). **Built, not tried on hardware**: the state comes from a snapshot that `manager.c` refreshes (see [dcapi.md](dcapi.md)). The iBlue is a HW2 build, so the port sense inputs are read like on BlueRetro's own HW2 hardware (`sense_port_is_empty()` in `manager.c`).
 
-## What the other repository has to change when its module is ported
+## DC-DreamDash's iBlue module: removed
 
-DC-DreamDash's iBlue module (`modules/ibluecontrol/netswitch_iblue_proto.py`) needed two edits: `CMD_GET_PORT_STATUS = 0x4B` becomes `0x50`, and the port-status feature test `f & 8` becomes `f & 0x20` (and its simulated adapter and tests follow). **Done 2026-11-09** in DC-DreamDash (see its `docs/ibluecontrol.md`); its old reference to a firmware branch `claude/port-status`, which never existed, now points at `unified`. `dev_mode` can now also be 4 (Racing Controller) and 5 (Maracas Controller).
+The DreamPi link to the adapter over Bluetooth was dropped on 2026-11-19; DC-DreamDash removed its `ibluecontrol` module, and the firmware removed `0x51`.
+

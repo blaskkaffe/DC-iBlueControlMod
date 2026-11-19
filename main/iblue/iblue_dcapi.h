@@ -30,12 +30,10 @@
  *                      (iblue_mapcfg.h has the text form). get port.A.map.* / port.A.map.A1* lists outputs by prefix; set replaces the
  *                      inputs of one output. Applied a moment after the answer (a get in the same request still shows the old line).
  *    game.id        read only: the game id openMenu sent (Maple 0x21), absent when no game
- *    net.selected   dcnow | dcnet: set by whoever knows (the Pi over BLE, openMenu over Maple), read back; not stored
+ *    net.selected   dcnow | dcnet: set by openMenu over Maple, read back; not stored
  *    events         not implemented here (err events unavailable)
  *
- * Three ways in, one engine:
- *    BLE (att_cfg.c, command 0x51, feature bit 6): iblue_dcapi_ble_write() / iblue_dcapi_ble_read(), chunked because one
- *       read answers at most 23 bytes.
+ * One way in (the Bluetooth way, BLE command 0x51 for DreamPi, was dropped 2026-11-19):
  *    Maple (maple.c, command 0x22 to the memory card unit): iblue_dcapi_maple(); the request text and the answer travel
  *       word-reversed like all text on the bus. The request is answered in the same exchange (data frame with the answer).
  *    The extended device info carries "dc1 " and the capability bits as 8 hex digits behind the 16 byte marker, so
@@ -127,8 +125,6 @@ void iblue_dcapi_motion_set(uint8_t mode, uint8_t left, uint8_t right);
  * keys motion.left.height / motion.right.height while that side is calibrated (forward set). */
 void iblue_dcapi_motion_height(uint8_t side, int degrees);
 
-void iblue_dcapi_ble_write(const uint8_t *data, size_t len);
-size_t iblue_dcapi_ble_read(uint8_t *out, size_t max);
 
 #else
 #define iblue_dcapi_init(version)

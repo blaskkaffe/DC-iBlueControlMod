@@ -118,10 +118,6 @@ static DRAM_ATTR volatile uint8_t port_layout[IBLUE_DCAPI_PORTS] = {0xFF, 0xFF, 
 /* maple and ble keep their own buffers (static: the interrupt has little stack) */
 static DRAM_ATTR char maple_req[IBLUE_DCAPI_REQ_MAX + 1];
 static DRAM_ATTR char maple_ans[IBLUE_DCAPI_ANS_MAX + 1];
-static DRAM_ATTR char ble_req[IBLUE_DCAPI_REQ_MAX + 1];
-static DRAM_ATTR char ble_ans[IBLUE_DCAPI_ANS_MAX + 1];
-static DRAM_ATTR size_t ble_req_len, ble_ans_len, ble_pos;
-static DRAM_ATTR uint8_t ble_over; /* the request did not fit: it is refused, not cut and applied */
 
 /* ---- output */
 struct out {
@@ -1035,49 +1031,6 @@ void IRAM_ATTR iblue_dcapi_ext_caps(uint8_t *wire24) {
             wire24[w + j] = (uint8_t)txt[w + 3 - j];
         }
     }
-}
-
-/* ---- BLE: chunks in, chunks out */
-void iblue_dcapi_ble_write(const uint8_t *data, size_t len) {
-    size_t n;
-
-    if (len < 1) {
-        return;
-    }
-    if (data[0] & 0x01) {
-        ble_req_len = 0;
-        ble_over = 0;
-        ble_ans_len = 0;
-        ble_pos = 0;
-    }
-    for (n = 1; n < len; n++) {
-        if (ble_req_len < IBLUE_DCAPI_REQ_MAX) {
-            ble_req[ble_req_len++] = (char)data[n];
-        }
-        else {
-            ble_over = 1;
-        }
-    }
-    if (data[0] & 0x02) {
-        ble_ans_len = ble_over ? too_long(ble_ans, sizeof(ble_ans)) : iblue_dcapi_handle(ble_req, ble_req_len, ble_ans, sizeof(ble_ans));
-        ble_pos = 0;
-    }
-}
-
-size_t iblue_dcapi_ble_read(uint8_t *out, size_t max) {
-    size_t n;
-
-    if (max < 2) {
-        return 0;
-    }
-    n = ble_ans_len - ble_pos;
-    if (n > max - 1) {
-        n = max - 1;
-    }
-    memcpy(out + 1, ble_ans + ble_pos, n);
-    ble_pos += n;
-    out[0] = ble_pos < ble_ans_len ? 1 : 0;
-    return n + 1;
 }
 
 #endif /* CONFIG_BLUERETRO_IBLUE_DCAPI */

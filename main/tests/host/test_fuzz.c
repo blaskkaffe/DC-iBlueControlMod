@@ -207,29 +207,6 @@ static void fuzz_maple(long rounds) {
     }
 }
 
-static void fuzz_ble(long rounds) {
-    for (long it = 0; it < rounds; it++) {
-        uint32_t chunks = 1 + rnd_below(30);
-        random_world();
-        for (uint32_t c = 0; c < chunks; c++) {
-            size_t len = rnd_below(24);
-            uint8_t *d = malloc(len ? len : 1);
-            for (size_t i = 0; i < len; i++) { d[i] = rnd_below(3) ? (uint8_t)"dc1\nget hello\nset port.A.map.Z lb\n"[(c * 7 + i) % 32] : (uint8_t)rnd(); }
-            if (len) { d[0] = (uint8_t)((c == 0 ? 1 : 0) | (c + 1 == chunks ? 2 : 0) | (rnd_below(8) ? 0 : rnd_below(4))); }
-            iblue_dcapi_ble_write(d, len);
-            free(d);
-        }
-        for (int k = 0; k < 40; k++) {
-            size_t max = rnd_below(30);
-            uint8_t *o = malloc(max ? max : 1);
-            size_t r = iblue_dcapi_ble_read(o, max);
-            CHECK(r <= max);
-            free(o);
-            if (!max) { continue; }
-        }
-    }
-}
-
 int main(void) {
     long n = env_n("FUZZ_N", 20000);
     rnd_seed();
@@ -237,7 +214,6 @@ int main(void) {
     fuzz_parse(n);
     fuzz_handle(n);
     fuzz_maple(n);
-    fuzz_ble(n / 4);
     printf("fuzz: parse ok=%ld none=%ld refused=%ld; %ld requests answered, %ld ended in the middle of a line (must be 0); %ld cfg requests, %ld map adds\n",
            parse_stats[0], parse_stats[1], parse_stats[2], handle_stats[0], handle_stats[1], nreq, nadd);
     printf("fuzz: %d checks, %d failed\n", checks, fails);

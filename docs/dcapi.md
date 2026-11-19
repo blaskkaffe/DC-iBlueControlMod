@@ -12,7 +12,7 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 |---|---|
 | `hello.kind` `hello.name` `hello.version` `hello.api` `hello.caps` | `adapter`, `iBlueControlMod`, the firmware version, `1`, `api,net,port,game` |
 | `game.id` | read only: the game id from openMenu (Maple `0x21`); `err game.id unavailable no game` when none |
-| `net.selected` | `dcnow` or `dcnet`; `set` by the Pi (over BLE) or openMenu (over Maple), read back; not stored; `err ... unavailable not set` until someone sets it. Nothing in the firmware uses it yet (the LED colour by network, IB-P2, will) |
+| `net.selected` | `dcnow` or `dcnet`; `set` by openMenu (over Maple), read back; not stored; `err ... unavailable not set` until someone sets it. Nothing in the firmware uses it yet (the LED colour by network, IB-P2, will) |
 | `port.<A-D>.state` | `empty`, `bt` (a Bluetooth controller with finished HID setup is mapped to the port) or `wired` (the port's sense input says something is plugged in; a physical controller wins over a Bluetooth one). The adapter never learns **what** the wired device is, that is for openMenu to find out |
 | `port.<A-D>.mode` `.acc` | the output mode (`normal`, `dual`, `keyboard`, `mouse`, `racing`, `maracas`) and accessory mode (`none`, `vmu`, `rumble`, `both`). **`set` works**: it is applied at once, and because a console only looks at what is on a port when it enumerates it, the wired side restarts (the console sees the controllers leave and come back, like a hot-plug). Not stored until `call sys.commit` |
 | `port.<A-D>.name` | read only: the product name the console reads in the device info (`Dreamcast Controller` for normal and dual stick, `Keyboard`, `Dreamcast Mouse`, `Racing Controller`, `Maracas Controller`) |
@@ -56,10 +56,9 @@ The engine runs in the Maple interrupt: all its text is in RAM (`DRAM_ATTR`), it
 
 Command `0x50` `GET_PORT_STATUS` (info feature bit 5, read only) answers `[count, then per port: state, dev_mode, acc_mode, bt type, bt subtype]` from the same snapshot; it is compiled with the DC API option.
 
-### Command `0x51` (info feature bit 6)
+### Command `0x51`: dropped
 
-One read answers at most 23 bytes, so the tunnel is chunked: write `0x51`, a flags byte (bit 0 first chunk, bit 1 last chunk) and up to 20 bytes of request text, as many writes as needed; after the last chunk, read: byte 0 is `1` while more of the answer follows (read again) and `0` on the last chunk, then up to 22 bytes of text. Reading past the end gives a single `0`.
-
+The DC API over Bluetooth (`0x51`, info feature bit 6) was there for DreamPi / DC-DreamDash to change settings. That idea was dropped on 2026-11-19 and the command removed; `0x51` and bit 6 stay unused. The DC API is reached over Maple only.
 
 ## Layouts and the mapping of an output (2026-11-05)
 

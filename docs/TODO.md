@@ -37,6 +37,7 @@ Order of the day: **organise and restructure first** (one branch, one place for 
 
 ## Dropped
 - A port D (or any port) that is always there but not a controller.
+- DreamPi / DC-DreamDash talking to the adapter over Bluetooth (2026-11-19): DC-DreamDash's `ibluecontrol` module and the firmware's BLE DC API tunnel `0x51` are removed. Port status `0x50` stays for the web config.
 
 ## Done
 - The `iblue-v1.9` text is out of `docs/README_iBlueControlMod.md`.

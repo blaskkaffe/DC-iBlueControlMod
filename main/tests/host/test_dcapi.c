@@ -220,33 +220,6 @@ int main(void) {
         CHECK(mem[12] == 0 && mem[23] == 0);
     }
 
-    /* BLE: chunks of 22 bytes in, chunks of 22 bytes out */
-    {
-        const char *req = "dc1\nget hello\nget net.selected\n";
-        size_t rl = strlen(req), sent = 0;
-        uint8_t chunk[23], rd[23];
-        char got[IBLUE_DCAPI_ANS_MAX + 1];
-        size_t gl = 0;
-        while (sent < rl) {
-            size_t n = rl - sent > 10 ? 10 : rl - sent;
-            chunk[0] = (uint8_t)((sent == 0 ? 1 : 0) | (sent + n == rl ? 2 : 0));
-            memcpy(chunk + 1, req + sent, n);
-            iblue_dcapi_ble_write(chunk, n + 1);
-            sent += n;
-        }
-        for (int i = 0; i < 40; i++) {
-            size_t n = iblue_dcapi_ble_read(rd, 23);
-            CHECK(n >= 1 && n <= 23);
-            memcpy(got + gl, rd + 1, n - 1);
-            gl += n - 1;
-            if (!rd[0]) break;
-        }
-        got[gl] = 0;
-        SAME(got, ask(req));
-        CHECK(iblue_dcapi_ble_read(rd, 23) == 1 && rd[0] == 0);    /* read past the end: empty, last */
-        CHECK(iblue_dcapi_ble_read(rd, 1) == 0);
-    }
-
     /* ---- layouts and the mapping of an output (port.X.layout, port.X.layouts, port.X.map.<OUTPUT>) */
     iblue_dcapi_port_count(2);
     for (uint32_t i = 0; i < 115; i++) {

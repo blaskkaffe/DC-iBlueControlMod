@@ -52,13 +52,13 @@
 #define CFG_CMD_GET_MOTION_STATUS 0x4E /* read: count, then 6 bytes per controller (see iblue_motion_ctl.h) */
 #define CFG_CMD_RESET_MOTION_CAL 0x4F /* write: forget the learned axes and ranges; then read: result */
 #define CFG_CMD_GET_PORT_STATUS 0x50  /* read: count, then per port: state, dev_mode, acc_mode, bt type, bt subtype */
-#define CFG_CMD_DCAPI 0x51            /* DC API (dc1): write flags + request text chunks; then read: more flag + answer chunk */
+/* 0x51 was the DC API over Bluetooth, for DreamPi: dropped with that idea (2026-11-19), stays unused */
 #define IBLUE_FEAT_GESTURES 0x01      /* info features: bit0 tap gestures; bit1 was "profiles": removed, stays unused */
 #define IBLUE_FEAT_ANIM 0x08          /* bit3 LED / animation settings */
 #define IBLUE_FEAT_GAMEID 0x04        /* bit2 Dreamcast game id from openMenu (Maple command 0x21) */
 #define IBLUE_FEAT_MOTION 0x10        /* bit4 Joy-Con motion (maracas) */
 #define IBLUE_FEAT_PORTS 0x20         /* bit5 port status (command 0x50) */
-#define IBLUE_FEAT_DCAPI 0x40         /* bit6 DC API text tunnel (command 0x51) */
+/* bit6 was the DC API over Bluetooth (0x51): dropped, stays unused */
 #define IBLUE_RESULT_BAD_ARG 2        /* result of a write command: bad request (0 = ok) */
 #define IBLUE_ANIM_PART_FIELDS 8      /* a read answer is kept to 20 bytes: it fits the shortest ATT payload */
 #define IBLUE_CFG_VERSION 1
@@ -486,13 +486,6 @@ static void bt_att_cfg_cmd_port_status_rsp(uint16_t handle) {
 
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, len);
 }
-
-static void bt_att_cfg_cmd_dcapi_rsp(uint16_t handle) {
-    /* byte 0: 1 = more of the answer follows (read again), 0 = this was the last chunk; then up to 22 bytes of text */
-    uint32_t len = iblue_dcapi_ble_read(bt_hci_pkt_tmp.att_data, 23);
-
-    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, len);
-}
 #endif
 
 static void bt_att_cfg_cmd_anim_cfg_rsp(uint16_t handle) {
@@ -596,9 +589,6 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
         case CFG_CMD_GET_PORT_STATUS:
             bt_att_cfg_cmd_port_status_rsp(handle);
             break;
-        case CFG_CMD_DCAPI:
-            bt_att_cfg_cmd_dcapi_rsp(handle);
-            break;
 #endif
 #endif
         default:
@@ -687,11 +677,6 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
         case CFG_CMD_RESET_MOTION_CAL:
             iblue_motion_ctl_reset_cal();
             iblue_result = 0;
-            break;
-#endif
-#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
-        case CFG_CMD_DCAPI:
-            iblue_dcapi_ble_write(&data[1], len - 1); /* flags (bit0 first chunk, bit1 last chunk), then the request text */
             break;
 #endif
 #endif
