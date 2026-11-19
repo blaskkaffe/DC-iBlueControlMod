@@ -80,6 +80,7 @@
 #define IBLUE_CFG_MOTION_MODE 10 /* a = 1 on, 0 off: kept in flash at once */
 #define IBLUE_CFG_MOTION_POSE 11 /* a = pose (0 forward, 1 up, 2 down, 3 out), b = seconds until it is taken */
 #define IBLUE_CFG_MOTION_RESET 12 /* forget the learned pointing directions and ranges */
+#define IBLUE_CFG_GAME_RELOAD 9 /* load the configuration of the running game again (the connected controllers changed) */
 /* Both return 1 when the message is queued, 0 when it was dropped (queue full or muted; for the map also: the mailbox is still busy).
  * The engine then answers err busy and changes nothing it has told the caller about. */
 int iblue_dcapi_cfg_request(uint8_t op, uint8_t a, uint8_t b);

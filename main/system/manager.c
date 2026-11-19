@@ -40,6 +40,8 @@
 #include "iblue/iblue_tap.h"
 #include "iblue/iblue_dcapi.h"
 #include "iblue/iblue_mapcfg.h"
+#include "iblue/iblue_gamecfg.h"
+#include "adapter/gameid.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /*
@@ -515,6 +517,21 @@ static void wired_port_hdl(void) {
         iblue_dcapi_port_set(p, port_st, config.out_cfg[p].dev_mode, config.out_cfg[p].acc_mode, port_type, port_subtype);
         /* which named layout the port's mapping equals, or -1 (custom): worked out here, not in the Maple interrupt */
         iblue_dcapi_port_layout(p, iblue_layout_match((const struct iblue_mapent *)config.in_cfg[p].map_cfg, config.in_cfg[p].map_size, (uint8_t)p));
+    }
+#endif
+#if defined(CONFIG_BLUERETRO_IBLUE_GAMEID) && defined(CONFIG_BLUERETRO_IBLUE_DCAPI)
+    {
+        /* A game with a built-in setup (Samba de Amigo) is running and a Joy-Con came or went: look at the setup again, so the
+         * port is the maracas while they are there and a normal controller when they are not. */
+        static uint32_t game_ctrl = 0xFFFFFFFF;
+        uint32_t now = config_game_controllers();
+
+        if (now != game_ctrl) {
+            if (game_ctrl != 0xFFFFFFFF && iblue_game_profile(gid_get()) != IBLUE_GAME_NONE) {
+                iblue_dcapi_cfg_request(IBLUE_CFG_GAME_RELOAD, 0, 0);
+            }
+            game_ctrl = now;
+        }
     }
 #endif
     if (hw_config.hotplug) {

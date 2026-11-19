@@ -4,6 +4,7 @@ import { saveOutputCfg } from '../utils/saveOutputCfg.js';
 import { savePresetInput } from '../utils/savePresetInput.js';
 import { el, card, say, page } from './ui.js';
 import * as motion from './motion.js';
+import { getPortStatus } from '../utils/iblueCmd.js';
 
 let ctx;
 let status;
@@ -23,9 +24,12 @@ export const dcPresets = [
     { name: 'Racing controller', mode: 4, map: true,
       text: 'The Dreamcast racing controller: A, B, Start, d-pad, steering (left stick), accelerator (R2) and brake (L2). No X and Y. Not tried on a console yet.' },
     { name: 'Samba de Amigo maracas', mode: 5, map: 'maracas',
-      text: "A first step with the sticks: each stick is the position of one maraca (the left stick the left maraca), stick up is high. L1 / R1 shake left / right (B / A), L2 is the left maraca's button C, R2 and Start are Start. Tilt and shake from Joy-Cons is planned. Use port A or B. Not tried with the game yet." },
+      text: "For a pad with two sticks: each stick is one maraca (stick up is high). L1 / R1 shake left / right, R2 and Start are Start. Use port A or B. For Joy-Cons use the next one instead. Not tried with the game yet." },
     { name: 'Samba de Amigo (Joy-Con motion)', mode: 5, map: 'motion',
-      text: 'The Joy-Cons are the maracas: the left Joy-Con the left maraca, the right one the right maraca. Tilt is the height, turning the sideways position, a shake is the shake (B / A); ZL is the left C, Plus / ZR are Start. Switch motion mode on and calibrate below. Connect the left Joy-Con first. Uses this port and the next input. Not tried with the game yet.' },
+      text: 'Two Joy-Cons are the two maracas on one port. Tilt is the height, a shake is the shake.',
+      steps: ['Switch on "Joy-Con motion" below, then connect both Joy-Cons (the left one first).',
+          'Choose Port A above and press Apply here. Port B is then used by the right Joy-Con: leave it alone.',
+          'Calibrate below: hold each Joy-Con still in the pose the page asks for.'] },
     { name: 'Keyboard', mode: 2, map: false, text: 'A Dreamcast keyboard. The mapping of the output is kept.' },
     { name: 'Mouse', mode: 3, map: false, text: 'A Dreamcast mouse. The mapping of the output is kept.' },
 ];
@@ -90,11 +94,50 @@ export function init(root, c) {
         card('Controller type', null,
             el('div', { class: 'row' }, el('label', { for: 'dcOutput', text: 'Apply to' }), out, el('span')),
             el('div', { class: 'grid', id: 'dcPresetRows', style: 'margin-top:14px' },
-                dcPresets.map((p, i) => el('div', { class: 'tile' },
+                dcPresets.map((p, i) => el('div', { class: 'tile', id: 'dcTile' + i },
                     el('h3', { text: p.name }), el('p', { text: p.text }),
+                    p.steps ? el('ol', { class: 'steps' }, p.steps.map((t) => el('li', { text: t }))) : null,
                     el('button', { class: 'btn primary', id: 'dcPreset' + i, text: 'Apply', 'aria-label': 'Apply ' + p.name, onClick: () => apply(p) })))),
             status),
         motion.build(c));
+    out.addEventListener('change', () => { refresh(); });
+}
+
+/* The type each port has now, as the adapter reports it. Two tiles can share a type (the two maracas): the one that was
+ * applied last on this port wins, remembered in the browser. */
+let ports = null;
+
+function remembered(port) {
+    try { return Number(localStorage.getItem('iblue.preset.' + port)); } catch (e) { return NaN; }
+}
+
+function remember(port, i) {
+    try { localStorage.setItem('iblue.preset.' + port, String(i)); } catch (e) { /* storage is only a convenience */ }
+}
+
+function mark() {
+    const port = Number($('dcOutput').value);
+    const now = ports && ports[port] ? ports[port].mode : null;
+    let on = -1;
+
+    if (now !== null) {
+        const r = remembered(port);
+
+        on = dcPresets[r] && dcPresets[r].mode === now ? r : dcPresets.findIndex((p) => p.mode === now);
+    }
+    dcPresets.forEach((p, i) => {
+        const tile = $('dcTile' + i);
+        const btn = $('dcPreset' + i);
+
+        tile.classList.toggle('on', i === on);
+        btn.textContent = i === on ? 'Selected' : 'Apply';
+        btn.setAttribute('aria-pressed', i === on ? 'true' : 'false');
+    });
+}
+
+async function refresh() {
+    try { ports = ctx.svc() ? await getPortStatus(ctx.svc()) : null; } catch (e) { ports = null; }
+    mark();
 }
 
 async function apply(preset) {
@@ -116,7 +159,9 @@ async function apply(preset) {
         else if (preset.map) {
             await savePresetInput({ map: preset.map === 'maracas' ? maracasMap(defaultMap) : defaultMap }, ctx.svc(), cfgId);
         }
+        remember(cfgId, dcPresets.indexOf(preset));
         say(status, preset.name + ' is set on output ' + (cfgId + 1) + ' (' + devCfg[preset.mode] + ').', 'ok');
+        await refresh();
         ctx.toast(preset.name + ' is set on port ' + 'ABCD'[cfgId] + '.');
     }
     catch (error) {
@@ -124,5 +169,5 @@ async function apply(preset) {
     }
 }
 
-export async function connected() { say(status, ''); await motion.connected(); }
-export function disconnected() { say(status, ''); motion.disconnected(); }
+export async function connected() { say(status, ''); await refresh(); await motion.connected(); }
+export function disconnected() { say(status, ''); ports = null; mark(); motion.disconnected(); }

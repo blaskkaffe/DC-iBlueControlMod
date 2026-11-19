@@ -16,6 +16,11 @@
 #include "adapter/gameid.h"
 #include "bluetooth/mon.h"
 #include "system/manager.h"
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+#include "iblue/iblue_gamecfg.h"
+#include "iblue/iblue_motion_ctl.h"
+#include "bluetooth/host.h"
+#endif
 
 struct config config;
 struct hw_config hw_config = {
@@ -482,6 +487,58 @@ void hw_config_patch(void) {
     }
 }
 
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+/* The built-in setup of a game that has none saved (Samba de Amigo: maracas on port A). Nothing is stored; it is only a
+ * starting point, a configuration saved for the game wins and is looked for first. The combos of the normal table are kept. */
+/* The controllers that decide about a built-in game setup, as one number (the manager watches it for changes) */
+uint32_t config_game_controllers(void) {
+    uint32_t joycons = bt_host_active_count(BT_SW, BT_SW_LEFT_JOYCON) + bt_host_active_count(BT_SW, BT_SW_RIGHT_JOYCON);
+    uint32_t wiimotes = bt_host_active_count(BT_WII, -1);
+
+    return joycons | (wiimotes << 8) | (iblue_motion_ctl_mode() ? 0x10000 : 0);
+}
+
+/* 1: the setup was applied */
+static int config_apply_game(struct config *data, int profile) {
+    uint32_t have = config_game_controllers();
+    int motion = iblue_game_setup(profile, have & 0xFF, (have >> 8) & 0xFF, (have >> 16) & 1) == IBLUE_SETUP_MOTION;
+
+    if (!motion) {
+        return 0; /* no controller that can be a maraca: the normal configuration stays */
+    }
+
+    for (uint32_t in = 0; in < IBLUE_GAMECFG_INPUTS; in++) {
+        struct iblue_mapent ent[16];
+        size_t n = iblue_game_map(profile, motion, in, ent, ARRAY_SIZE(ent));
+        struct map_cfg *m = data->in_cfg[in].map_cfg;
+        uint32_t size = 0;
+
+        if (!n) {
+            continue; /* this input keeps its table */
+        }
+        for (size_t k = 0; k < n; k++) {
+            memcpy(&m[size++], &ent[k], sizeof(struct map_cfg));
+        }
+        if (in == 0) {
+            for (uint32_t k = 0; k < BR_COMBO_CNT; k++) {
+                m[size].src_btn = config_default_combo[k];
+                m[size].dst_btn = k + BR_COMBO_BASE_1;
+                m[size].dst_id = 0;
+                m[size].perc_max = 100;
+                m[size].perc_threshold = 50;
+                m[size].perc_deadzone = 135;
+                m[size].turbo = 0;
+                m[size].algo = 0;
+                size++;
+            }
+        }
+        data->in_cfg[in].map_size = size;
+    }
+    data->out_cfg[0].dev_mode = DEV_MARACAS;
+    return 1;
+}
+#endif
+
 void config_init(uint32_t src) {
     char tmp_str[32] = "/fs/";
     char *filename = CONFIG_FILE;
@@ -499,6 +556,16 @@ void config_init(uint32_t src) {
     }
 
     config_load_from_file(&config, filename);
+#ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
+    if (src == GAMEID_CFG && config_src == DEFAULT_CFG && strlen(gameid)) {
+        int profile = iblue_game_profile(gameid);
+
+        if (profile != IBLUE_GAME_NONE && config_apply_game(&config, profile)) {
+            config_src = GAMEID_CFG;
+            printf("# %s: built-in setup for game %s\n", __FUNCTION__, gameid);
+        }
+    }
+#endif
     if (config_rst_bare_core && config_is_rst_required()) {
         sys_mgr_cmd(SYS_MGR_CMD_WIRED_RST);
         printf("# %s: Reloaded wired core cfg: %s\n", __FUNCTION__, filename);

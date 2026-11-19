@@ -210,6 +210,10 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
             iblue_motion_ctl_reset_cal();
             break;
 #endif
+        case IBLUE_CFG_GAME_RELOAD:
+            config_init(GAMEID_CFG);
+            iblue_dcapi_unsaved_clear();
+            break;
         case IBLUE_CFG_COMMIT:
             config_update(config_get_src());
             break;
