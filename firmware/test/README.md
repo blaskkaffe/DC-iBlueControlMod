@@ -1,10 +1,29 @@
-# Test firmware (not tested on hardware yet)
+# Test firmware
 
 | File | Branch / commit | Status |
 |---|---|---|
-| `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` | `unified` @ 0c440c8 (hw2 `dreamcast_iblue`, built with ESP-IDF 030c995, no hardware tag) | Boots in the ESP32 emulator, but has not been tried on an adapter, a console or with Samba de Amigo |
+| `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` | `unified` @ 0c440c8 (hw2 `dreamcast_iblue`, built with ESP-IDF 030c995, no hardware tag) | **Flashed on an adapter (2026-11-19):** boots, the LED comes on orange, a Bluetooth pad pairs and plays, rumble and VMU work. **Joy-Con motion does not work as it should:** in the maracas setup the two Joy-Cons end up on separate ports instead of being the two maracas of one port. Not tried with Samba de Amigo |
+| `BlueRetro_iBlueControlMod_step1_b32d9c0.bin` | `stepwise` @ b32d9c0 = 0c440c8 + step 1 | DC API: Joy-Con motion keys and live heights (`motion.*`, from ab2c57d, fefbfa8), plus a fix: an absent Joy-Con's height read a flash constant in the controller-port interrupt. Not tried on hardware |
+| `BlueRetro_iBlueControlMod_step2_0268639.bin` | + step 2 | DC API also on the controller unit, no VMU needed (6186f13). Not tried on hardware |
+| `BlueRetro_iBlueControlMod_step3_e9807db.bin` | + step 3 | Samba de Amigo sets up the maracas by itself when openMenu reports the game and a Joy-Con with motion is connected; web steps for the Joy-Con preset (Samba half of e495c0d). Not tried on hardware |
+| `BlueRetro_iBlueControlMod_step4_7a4de33.bin` | + step 4 | VMU: format a blank card, store a write only when it arrived intact (else ask the console to resend), answer the beeper (VMU half of e495c0d). Not tried on hardware |
+| `BlueRetro_iBlueControlMod_step5_e85d9fe.bin` | + step 5 | DC API in keyboard and mouse mode too (6c32142). The code of `unified` today plus the step 1 fix. Not tried on hardware |
+| `BlueRetro_iBlueControlMod_step6_1eb3e4a.bin` | + step 6 | **Port fix:** the adapter claims no port at start-up and never answers on a port with a physical controller (a wired pad on D did not work on 0c440c8). Not tried on hardware |
 
-The baseline tested on hardware is still `../BlueRetro_iBlueControlMod_RGB_v1.bin`. Hold the button for 30 s to return to the vendor firmware.
+Each step builds on the one before (branch `stepwise`, from 0c440c8). Try them in order; if one breaks something, the change of that step did it. All six: built with ESP-IDF 030c995, no warnings, host tests pass, no flash reads from the controller-port interrupt, boot in the ESP32 emulator.
+
+Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) and `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` (the basics, see above). Hold the button for 30 s to return to the vendor firmware.
+
+## Results on hardware (0c440c8, 2026-11-19)
+
+| Check | Result |
+|---|---|
+| Install over OTA and boot, LED orange | works |
+| Bluetooth pad pairs and plays | works |
+| Rumble and VMU | work |
+| Two Joy-Cons in maracas mode (Joy-Con motion) | **does not work as it should**: the two Joy-Cons land on separate ports; they should be the left and right maraca of one port |
+| A wired controller on port D | **does not work** (most likely the adapter also answers the console on that port; step 6 should fix it, not tried yet) |
+| LED gestures, game ID, VMU save during a game ID, Samba de Amigo | not reported yet |
 
 ## What's in it, compared with v1
 
