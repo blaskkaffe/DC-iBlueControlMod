@@ -46,7 +46,7 @@ The finer settings (range, shake strength, smoothing) stay on the web page and B
 
 ## Over Maple (command `0x22`)
 
-Sent to the **memory card unit** of the port (the same unit that takes the game id), payload: the function code of the memory card (`0x00000002`), then the request text. Like all text on the bus it is **word-reversed** (every 4 bytes) and NUL padded to whole words, at most 252 bytes. The adapter answers in the same exchange with a data frame (`0x08`): the function code, then the answer text the same way (at most 400 bytes, cut at a line end). A request with another function code or no text is acknowledged only.
+Sent to the **controller unit** of the port (any pad mode: normal, dual, racing, maracas; needs no accessory) or to the **memory card unit** (the same unit that takes the game id; needs the memory card accessory), payload: the function code of the unit (controller `0x00000001`, memory card `0x00000002`; the controller unit does not look at it), then the request text. Like all text on the bus it is **word-reversed** (every 4 bytes) and NUL padded to whole words, at most 252 bytes. The adapter answers in the same exchange with a data frame (`0x08`): the function code, then the answer text the same way (at most 400 bytes, cut at a line end). A request with another function code or no text is acknowledged only.
 
 Discovery costs nothing extra: the extended device info (`0x02`) carries the marker `iBlueControlMod ` (16 bytes, for the game id) and, in the next 24 bytes, `dc1 ` plus the capability bits as 8 hex digits and NUL padding: `dc1 0000002b`.
 
