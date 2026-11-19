@@ -51,6 +51,35 @@
 #define CMD_GAMEID         IBLUE_GAMEID_CMD /* 0x21: the game id from openMenu, see iblue/iblue_gameid.h */
 #define CMD_DCAPI          IBLUE_DCAPI_CMD  /* 0x22: the DC API, see iblue/iblue_dcapi.h */
 
+/* The DC API on the controller unit, in every output mode (pad, dual, racing, maracas, keyboard, mouse), so it needs no accessory: the payload is a
+ * function word (not looked at: no game sends this command), then the request text, word-reversed. The answer is a data frame with `id` and the
+ * answer text. Used as a case of the command switch of each mode's main unit. */
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+#define DCAPI_ON_MAIN_UNIT(id)                                                                                          \
+    case CMD_DCAPI:                                                                                                     \
+        if (len >= 1) {                                                                                                 \
+            static uint8_t mreq[IBLUE_DCAPI_REQ_MAX]; /* static: the interrupt has little stack */                    \
+            uint32_t n = (len - 1) * 4;                                                                                 \
+            if (n > IBLUE_DCAPI_REQ_MAX) {                                                                              \
+                n = IBLUE_DCAPI_REQ_MAX;                                                                                \
+            }                                                                                                           \
+            for (uint32_t i = 0; i < n; i++) {                                                                          \
+                mreq[i] = maple_fix_byte(bad_frame, pkt.data[i + 7], pkt.data[i + 8]);                                  \
+            }                                                                                                           \
+            pkt.data32[0] = (id);                                                                                       \
+            pkt.len = 1 + iblue_dcapi_maple(mreq, n, (uint8_t *)&pkt.data32[1]);                                        \
+            pkt.cmd = CMD_DATA_TX;                                                                                      \
+        }                                                                                                               \
+        else {                                                                                                          \
+            pkt.len = 0x00;                                                                                             \
+            pkt.cmd = CMD_ACK;                                                                                          \
+        }                                                                                                               \
+        maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);                                                      \
+        break;
+#else
+#define DCAPI_ON_MAIN_UNIT(id)
+#endif
+
 #define ADDR_MASK   0x3F
 #define ADDR_MAIN   0x20
 #define ADDR_MEM    0x01
@@ -442,6 +471,7 @@ maple_end:
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 ++wired_adapter.data[port].frame_cnt;
                                 break;
+                            DCAPI_ON_MAIN_UNIT(ID_KB)
                             default:
                                 ets_printf("%02X: Unk cmd: 0x%02X\n", dst, cmd);
                                 break;
@@ -476,6 +506,7 @@ maple_end:
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 ++wired_adapter.data[port].frame_cnt;
                                 break;
+                            DCAPI_ON_MAIN_UNIT(ID_MOUSE)
                             default:
                                 ets_printf("%02X: Unk cmd: 0x%02X\n", dst, cmd);
                                 break;
@@ -535,31 +566,7 @@ maple_end:
                                 dc_gen_turbo_mask(&wired_adapter.data[port]);
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 break;
-#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
-                            case CMD_DCAPI:
-                                /* The DC API on the controller unit too, so it does not need the memory card accessory: the payload is a
-                                 * function word (not looked at: no game sends this command), then the request text. */
-                                if (len >= 1) {
-                                    static uint8_t mreq[IBLUE_DCAPI_REQ_MAX]; /* static: the interrupt has little stack */
-                                    uint32_t n = (len - 1) * 4;
-
-                                    if (n > IBLUE_DCAPI_REQ_MAX) {
-                                        n = IBLUE_DCAPI_REQ_MAX;
-                                    }
-                                    for (uint32_t i = 0; i < n; i++) {
-                                        mreq[i] = maple_fix_byte(bad_frame, pkt.data[i + 7], pkt.data[i + 8]);
-                                    }
-                                    pkt.data32[0] = ID_CTRL;
-                                    pkt.len = 1 + iblue_dcapi_maple(mreq, n, (uint8_t *)&pkt.data32[1]);
-                                    pkt.cmd = CMD_DATA_TX;
-                                }
-                                else {
-                                    pkt.len = 0x00;
-                                    pkt.cmd = CMD_ACK;
-                                }
-                                maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
-                                break;
-#endif
+                            DCAPI_ON_MAIN_UNIT(ID_CTRL)
                             default:
                                 ets_printf("%02X: Unk cmd: 0x%02X\n", dst, cmd);
                                 break;
