@@ -523,6 +523,31 @@ maple_end:
                                 dc_gen_turbo_mask(&wired_adapter.data[port]);
                                 maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
                                 break;
+#ifdef CONFIG_BLUERETRO_IBLUE_DCAPI
+                            case CMD_DCAPI:
+                                /* The DC API on the controller unit too, so it does not need the memory card accessory: the payload is a
+                                 * function word (not looked at: no game sends this command), then the request text. */
+                                if (len >= 1) {
+                                    static uint8_t mreq[IBLUE_DCAPI_REQ_MAX]; /* static: the interrupt has little stack */
+                                    uint32_t n = (len - 1) * 4;
+
+                                    if (n > IBLUE_DCAPI_REQ_MAX) {
+                                        n = IBLUE_DCAPI_REQ_MAX;
+                                    }
+                                    for (uint32_t i = 0; i < n; i++) {
+                                        mreq[i] = maple_fix_byte(bad_frame, pkt.data[i + 7], pkt.data[i + 8]);
+                                    }
+                                    pkt.data32[0] = ID_CTRL;
+                                    pkt.len = 1 + iblue_dcapi_maple(mreq, n, (uint8_t *)&pkt.data32[1]);
+                                    pkt.cmd = CMD_DATA_TX;
+                                }
+                                else {
+                                    pkt.len = 0x00;
+                                    pkt.cmd = CMD_ACK;
+                                }
+                                maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+                                break;
+#endif
                             default:
                                 ets_printf("%02X: Unk cmd: 0x%02X\n", dst, cmd);
                                 break;
