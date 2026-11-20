@@ -20,6 +20,7 @@
 #include "iblue/iblue_gameid.h"
 #include "iblue/iblue_dcapi.h"
 #include "maple.h"
+#include "maple_mic.h"
 
 #define ID_CTRL    0x00000001
 #define ID_VMU_MEM 0x00000002
@@ -45,6 +46,7 @@
 #define CMD_BLOCK_WRITE    0x0C
 #define CMD_WRITE_COMPLETE 0x0D
 #define CMD_SET_CONDITION  0x0E
+#define CMD_MIC_CONTROL    MAPLE_MIC_CMD_CONTROL /* 0x0F: the microphone (FT4), see maple_mic.h */
 #define CMD_GAMEID         IBLUE_GAMEID_CMD /* 0x21: the game id from openMenu, see iblue/iblue_gameid.h */
 #define CMD_DCAPI          IBLUE_DCAPI_CMD  /* 0x22: the DC API, see iblue/iblue_dcapi.h */
 
@@ -297,6 +299,64 @@ static uint8_t maple_tx(uint32_t port, uint32_t maple0, uint32_t maple1, uint8_t
     return crc_ret;
 }
 
+#ifndef CONFIG_BLUERETRO_WIRED_TRACE
+/* A byte of the received frame, with the bit-loss fix the memory card path uses */
+static inline uint8_t maple_rx_byte(uint32_t bad_frame, uint32_t i) {
+    if (bad_frame == 8) {
+        return pkt.data[i - 1];
+    }
+    return maple_fix_byte(bad_frame, pkt.data[i - 1], pkt.data[i]);
+}
+
+static uint32_t maple_mic_now_us(void) {
+    static uint32_t last_cc, rem, now_us;
+    uint32_t cc = xthal_get_ccount();
+    uint32_t d = cc - last_cc + rem;
+
+    last_cc = cc;
+    now_us += d / CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ;
+    rem = d % CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ;
+    return now_us;
+}
+
+/* The microphone on sub-unit 2 (acc mode ACC_MIC / ACC_MEM_MIC). pkt.src and pkt.dst are already set. */
+static void maple_mic_rx(uint32_t port, uint32_t maple0, uint32_t maple1, uint8_t cmd, uint8_t len, uint32_t bad_frame) {
+    uint32_t func = 0, arg = 0;
+
+    switch (cmd) {
+        case CMD_INFO_REQ:
+        case CMD_EXT_INFO_REQ:
+            pkt.len = maple_mic_info(pkt.data32, cmd == CMD_EXT_INFO_REQ);
+            memcpy((void *)&pkt.data32[12], brand, sizeof(brand));
+            pkt.cmd = (cmd == CMD_EXT_INFO_REQ) ? CMD_EXT_INFO_RSP : CMD_INFO_RSP;
+            break;
+        case CMD_MIC_CONTROL:
+            if (len < 2) {
+                pkt.len = 0;
+                pkt.cmd = MAPLE_MIC_RSP_UNKNOWN;
+                break;
+            }
+            for (uint32_t i = 0; i < 4; i++) {
+                func |= (uint32_t)maple_rx_byte(bad_frame, 4 + i) << (8 * i);
+                arg |= (uint32_t)maple_rx_byte(bad_frame, 8 + i) << (8 * i);
+            }
+            pkt.len = maple_mic_control(port, func, arg, maple_mic_now_us(), pkt.data32, &pkt.cmd);
+            break;
+        case CMD_RESET:
+        case CMD_SHUTDOWN:
+            maple_mic_reset(port);
+            pkt.len = 0;
+            pkt.cmd = CMD_ACK;
+            break;
+        default:
+            pkt.len = 0;
+            pkt.cmd = MAPLE_MIC_RSP_UNKNOWN;
+            break;
+    }
+    maple_tx(port, maple0, maple1, pkt.data, pkt.len * 4 + 5);
+}
+#endif
+
 static unsigned maple_rx(unsigned cause) {
     const uint32_t maple0 = GPIO.acpu_int;
     uint32_t timeout;
@@ -475,7 +535,7 @@ maple_end:
                 switch(src & ADDR_MASK) {
                     case ADDR_MAIN:
                         pkt.src = src;
-                        if (config.out_cfg[port].acc_mode & ACC_RUMBLE) {
+                        if (config.out_cfg[port].acc_mode & (ACC_RUMBLE | ACC_MIC)) {
                             pkt.src |= ADDR_RUMBLE;
                         }
                         if (config.out_cfg[port].acc_mode & ACC_MEM && mc_get_ready()) {
@@ -531,6 +591,10 @@ maple_end:
                     case ADDR_RUMBLE:
                         pkt.src = src;
                         pkt.dst = dst;
+                        if (config.out_cfg[port].acc_mode & ACC_MIC) {
+                            maple_mic_rx(port, maple0, maple1, cmd, len, bad_frame);
+                            break;
+                        }
                         switch (cmd) {
                             case CMD_INFO_REQ:
                                 pkt.len = 28;
@@ -765,6 +829,9 @@ void maple_init(uint32_t package)
 #else
     maple_port_cfg(0x1);
 #endif
+    for (uint32_t i = 0; i < MAPLE_MIC_PORTS; i++) {
+        maple_mic_reset(i);
+    }
     intexc_alloc_iram(ETS_GPIO_INTR_SOURCE, 19, maple_rx);
 }
 

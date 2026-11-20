@@ -75,7 +75,7 @@ int main(void) {
     iblue_dcapi_port_set(1, IBLUE_PORT_EMPTY, 3, 0, 0, 0);                     /* B: nothing, configured as mouse */
     SAME(ask("dc1\nget port.A.state\nget port.A.mode\nget port.A.acc\nget port.A.name\n"),
          "dc1\nok port.A.state bt\nok port.A.mode normal\nok port.A.acc vmu\nok port.A.name Dreamcast Controller\n");
-    SAME(ask("dc1\nget port.B.*\n"), "dc1\nok port.B.state empty\nok port.B.mode mouse\nok port.B.acc none\nok port.B.name Dreamcast Mouse\nok port.B.modes normal,dual,keyboard,mouse,racing,maracas\nok port.B.accs none,vmu,rumble,both\nok port.B.layout custom\nok port.B.layouts standard,all,custom\n");
+    SAME(ask("dc1\nget port.B.*\n"), "dc1\nok port.B.state empty\nok port.B.mode mouse\nok port.B.acc none\nok port.B.name Dreamcast Mouse\nok port.B.modes normal,dual,keyboard,mouse,racing,maracas\nok port.B.accs none,vmu,rumble,both,mic,vmu+mic\nok port.B.layout custom\nok port.B.layouts standard,all,custom\n");
     SAME(ask("dc1\nget port.C.state\nget port.E.state\nget port.A.colour\n"),
          "dc1\nerr port.C.state unavailable no such port\nerr port.E.state unknown\nerr port.A.colour unknown\n");
     CHECK(strstr(ask("dc1\nget port.*\n"), "ok port.A.state bt\nok port.A.mode normal") != NULL);
@@ -91,7 +91,7 @@ int main(void) {
     /* writable output and accessory modes: applied at once, asked of the firmware once, not stored until sys.commit */
     CHECK(nreq == 0);
     SAME(ask("dc1\nget sys.unsaved\nget sys.store\n"), "dc1\nok sys.unsaved no\nok sys.store commit\n");
-    SAME(ask("dc1\nget port.A.modes\nget port.A.accs\nset port.A.modes dual\n"), "dc1\nok port.A.modes normal,dual,keyboard,mouse,racing,maracas\nok port.A.accs none,vmu,rumble,both\nerr port.A.modes readonly\n");
+    SAME(ask("dc1\nget port.A.modes\nget port.A.accs\nset port.A.modes dual\n"), "dc1\nok port.A.modes normal,dual,keyboard,mouse,racing,maracas\nok port.A.accs none,vmu,rumble,both,mic,vmu+mic\nerr port.A.modes readonly\n");
     SAME(ask("dc1\nset port.A.mode dual\nget port.A.mode\nget port.A.name\nget sys.unsaved\n"),
          "dc1\nok port.A.mode dual\nok port.A.mode dual\nok port.A.name Dreamcast Controller\nok sys.unsaved yes\n");
     CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_SET_MODE && reqs[0].a == 0 && reqs[0].b == 1);
@@ -100,7 +100,7 @@ int main(void) {
     SAME(ask("dc1\nset port.B.acc both\nset port.B.acc rumble\n"), "dc1\nok port.B.acc both\nok port.B.acc rumble\n");
     CHECK(nreq == 3 && reqs[1].op == IBLUE_CFG_SET_ACC && reqs[1].a == 1 && reqs[1].b == 3 && reqs[2].b == 2);
     SAME(ask("dc1\nset port.A.mode wheel\nset port.A.acc 3\nset port.A.mode Dual\nset port.A.mode\n"),
-         "dc1\nerr port.A.mode range normal dual keyboard mouse racing or maracas\nerr port.A.acc range none vmu rumble or both\nerr port.A.mode range normal dual keyboard mouse racing or maracas\nerr port.A.mode range normal dual keyboard mouse racing or maracas\n");
+         "dc1\nerr port.A.mode range normal dual keyboard mouse racing or maracas\nerr port.A.acc range none vmu rumble both mic or vmu+mic\nerr port.A.mode range normal dual keyboard mouse racing or maracas\nerr port.A.mode range normal dual keyboard mouse racing or maracas\n");
     CHECK(nreq == 3);                                                              /* nothing was asked for the bad values */
     SAME(ask("dc1\ncall sys.commit\nget sys.unsaved\n"), "dc1\nok sys.commit done\nok sys.unsaved no\n");
     CHECK(nreq == 4 && reqs[3].op == IBLUE_CFG_COMMIT);

@@ -16,6 +16,9 @@ cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." 
 # the shared mapping text form and the layouts
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/mapcfg" "$d/test_mapcfg.c" "$d/../../iblue/iblue_mapcfg.c"
 "$out/mapcfg"
+# the emulated Dreamcast microphone (Maple FT4)
+cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/stubs" -I"$d/../.." -o "$out/mic" "$d/test_mic.c" "$d/../../wired/maple_mic.c"
+"$out/mic"
 # ---- test engineer pass: properties, fuzz, engine behaviour, compatibility gap, names, known bugs (all of these pass today, except the known bugs)
 CFLAGS="-Wall -Wextra -Werror -fsanitize=address,undefined -I$d/stubs -I$d/../.."
 SYS="$d/../../iblue"

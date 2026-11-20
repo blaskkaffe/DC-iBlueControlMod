@@ -350,6 +350,8 @@ enum {
     ACC_MEM,
     ACC_RUMBLE,
     ACC_BOTH,
+    ACC_MIC,     /* Dreamcast: a microphone on sub-unit 2 instead of the rumble pack (bit 2; bits 0-1 keep their meaning) */
+    ACC_MEM_MIC, /* Dreamcast: VMU on sub-unit 1 and the microphone on sub-unit 2 */
 };
 
 /* Multitap mode */

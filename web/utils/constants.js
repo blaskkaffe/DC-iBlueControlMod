@@ -436,6 +436,8 @@ export const accCfg = [
     'Memory',
     'Rumble',
     'Both',
+    'Microphone (Dreamcast, test tone)',
+    'Memory + Microphone (Dreamcast, test tone)',
 ];
 
 export const turboMask = {

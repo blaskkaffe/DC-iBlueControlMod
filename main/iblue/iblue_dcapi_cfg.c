@@ -151,7 +151,7 @@ void iblue_dcapi_cfg_apply(const struct raw_fb *fb) {
             }
             break;
         case IBLUE_CFG_SET_ACC:
-            if (a < WIRED_MAX_DEV && b <= ACC_BOTH && config.out_cfg[a].acc_mode != b) {
+            if (a < WIRED_MAX_DEV && b <= ACC_MEM_MIC && config.out_cfg[a].acc_mode != b) {
                 config.out_cfg[a].acc_mode = b;
                 reset = true;
             }

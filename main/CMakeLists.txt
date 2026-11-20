@@ -90,6 +90,7 @@ set(srcs
     "wired/sega_io.c"
     "wired/nsi.c"
     "wired/maple.c"
+    "wired/maple_mic.c"
     "wired/jvs_uart.c"
     "wired/parallel.c"
     "wired/pcfx_spi.c"
