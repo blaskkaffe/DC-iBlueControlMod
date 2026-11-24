@@ -11,10 +11,11 @@
 | `BlueRetro_iBlueControlMod_step6_1eb3e4a.bin` | + step 6 | **Port fix:** the adapter claims no port at start-up and never answers on a port with a physical controller (a wired pad on D did not work on 0c440c8). Not tried on hardware |
 | `BlueRetro_iBlueControlMod_step7_228fa84.bin` | + step 7 | The DreamPi Bluetooth link removed (BLE DC API `0x51`), as the idea is dropped. Port D: tried on step 6, **still does not work**; the port and sense code match the vendor firmware (checked in its machine code), so the cause is not found yet. Not tried on hardware |
 | `BlueRetro_iBlueControlMod_step8_3472411.bin` | + step 8 | Stored hardware overrides (settings section "hw") are ignored, as in the vendor firmware: the last port-related difference to it. Port D's pins, sense test and driver code are otherwise the same in vendor, v1.9 and this build. Not tried on hardware |
+| `BlueRetro_iBlueControlMod_step9_95cf304.bin` | + step 9 | **The boot animation is gone** (with its settings, the web config's LEDs page and BLE 0x47-0x4A). The port LEDs work as in the vendor firmware: lit with a controller, and the LED of the port the next controller gets (port 1 while none is connected) **pulses smoothly while pairing is open**. New controllers pair only then: 60 s at start-up and console power-on, after a **single tap** (now the default) or a 6 s hold, or from openMenu with `call pair.start`; paired controllers reconnect at any time. Not tried on hardware |
 
-Each step builds on the one before (branch `stepwise`, from 0c440c8). Try them in order; if one breaks something, the change of that step did it. All eight: built with ESP-IDF 030c995, no warnings, host tests pass, no flash reads from the controller-port interrupt, boot in the ESP32 emulator.
+Each step builds on the one before (branch `stepwise`, from 0c440c8). Try them in order; if one breaks something, the change of that step did it. All nine: built with ESP-IDF 030c995, no warnings, host tests pass, no flash reads from the controller-port interrupt, boot in the ESP32 emulator.
 
-Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) and `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` (the basics, see above). Hold the button for 30 s to return to the vendor firmware.
+Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) and `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` (the basics, see above). The 30 s hold does **not** reliably return to the vendor firmware (on this board it only rebooted); the sure way back is the USB-serial header.
 
 ## Results on hardware (0c440c8, 2026-11-19)
 
@@ -30,13 +31,13 @@ Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) an
 ## What's in it, compared with v1
 
 - **LED behaviour:**
-  - The port LEDs don't blink unless a Bluetooth controller is connecting; the power LED blinks while one connects.
+  - The port LEDs don't blink unless a Bluetooth controller is connecting; the power LED blinks while one connects. (Step 9: the port LEDs are the vendor firmware's again, with a smooth pairing pulse.)
   - Orange, blue or a custom colour: a double tap moves to the next colour, and holding on the second tap sweeps through colours and saves the one you stop on.
   - A fast fade-in, capped at 80 % brightness.
-- **Taps:** a single tap and a triple tap do nothing by default. You can map them in the hosted web config.
-- **Web config:** the redesigned one-page web config from the integration branch (Device, LEDs, Buttons, Controllers, Games, Update, Advanced), with the LED boot animation settings.
+- **Taps:** a single tap and a triple tap do nothing by default (step 9: the single tap opens pairing). You can map them in the hosted web config.
+- **Web config:** the redesigned one-page web config from the integration branch (Device, LEDs, Buttons, Controllers, Games, Update, Advanced), with the LED boot animation settings (removed in step 9).
 - **Game ID:** the adapter answers Maple command `0x21` like VM2, VMU Pro and Pico2Maple, and reports `iBlueControlMod ` in its extended device info. openMenu sends the game ID when a game starts.
-- **DC API (`dc1`):** a text interface over Maple command `0x22` and BLE `0x51`. It covers port modes, mapping (`port.X.map.<OUTPUT>`, layouts), deadzone, and `sys.commit` / `sys.revert`. See `docs/dcapi.md`.
+- **DC API (`dc1`):** a text interface over Maple command `0x22` (BLE `0x51` removed in step 7). It covers port modes, mapping (`port.X.map.<OUTPUT>`, layouts), deadzone, and `sys.commit` / `sys.revert`. See `docs/dcapi.md`.
 - **Port status:** BLE command `0x50`, the command DC-DreamDash's iBlue module reads (feature bit `0x20`).
 - **Samba de Amigo:**
   - A **Maracas Controller** output mode (the console sees Sega's maracas: `0x003C090F`, "Maracas Controller").
