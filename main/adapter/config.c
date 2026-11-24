@@ -476,9 +476,17 @@ void hw_config_patch(void) {
             if (index > -1) {
                 uint32_t value;
                 err = nvs_get_u32(nvs, info.key, &value);
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+                /* Logged, not applied: BlueRetro v1.9 (the vendor firmware) had no such overrides, and a pre-written one
+                 * (port_cnt, ports_s_out_en, ports_s_in_pol, hotplug...) changes how the ports work on this board */
+                if (err == ESP_OK) {
+                    printf("# %s: ignoring stored hw setting %s = %lu\n", __FUNCTION__, info.key, value);
+                }
+#else
                 if (err == ESP_OK) {
                     hw_config.data32[index] = value;
                 }
+#endif
             }
             err = nvs_entry_next(&it);
         }
