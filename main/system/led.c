@@ -17,6 +17,9 @@
 #include "esp_rom_gpio.h"
 #include "sdkconfig.h"
 #include "led.h"
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+#include "esp_private/esp_gpio_reserve.h"
+#endif
 
 #if defined(CONFIG_BLUERETRO_HW_IBLUECONTROLMOD)
 /* iBlueControlMod: the HS ch0 "pulse" PWM goes to GPIO14, one side of the
@@ -85,6 +88,10 @@ void err_led_init(uint32_t package) {
 #endif
     ledc_timer_config(&ledc_timer);
     ledc_channel_config(&ledc_channel);
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    /* the system manager sets the port LED channel up on GPIO15 too and routes the port LEDs itself: no reservation */
+    esp_gpio_revoke(BIT64(15));
+#endif
     ledc_fade_func_install(0);
     ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_off_duty_cycle, 0);
 
