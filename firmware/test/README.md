@@ -10,8 +10,9 @@
 | `BlueRetro_iBlueControlMod_step5_e85d9fe.bin` | + step 5 | DC API in keyboard and mouse mode too (6c32142). The code of `unified` today plus the step 1 fix. Not tried on hardware |
 | `BlueRetro_iBlueControlMod_step6_1eb3e4a.bin` | + step 6 | **Port fix:** the adapter claims no port at start-up and never answers on a port with a physical controller (a wired pad on D did not work on 0c440c8). Not tried on hardware |
 | `BlueRetro_iBlueControlMod_step7_228fa84.bin` | + step 7 | The DreamPi Bluetooth link removed (BLE DC API `0x51`), as the idea is dropped. Port D: tried on step 6, **still does not work**; the port and sense code match the vendor firmware (checked in its machine code), so the cause is not found yet. Not tried on hardware |
+| `BlueRetro_iBlueControlMod_step8_3472411.bin` | + step 8 | Stored hardware overrides (settings section "hw") are ignored, as in the vendor firmware: the last port-related difference to it. Port D's pins, sense test and driver code are otherwise the same in vendor, v1.9 and this build. Not tried on hardware |
 
-Each step builds on the one before (branch `stepwise`, from 0c440c8). Try them in order; if one breaks something, the change of that step did it. All seven: built with ESP-IDF 030c995, no warnings, host tests pass, no flash reads from the controller-port interrupt, boot in the ESP32 emulator.
+Each step builds on the one before (branch `stepwise`, from 0c440c8). Try them in order; if one breaks something, the change of that step did it. All eight: built with ESP-IDF 030c995, no warnings, host tests pass, no flash reads from the controller-port interrupt, boot in the ESP32 emulator.
 
 Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) and `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` (the basics, see above). Hold the button for 30 s to return to the vendor firmware.
 
