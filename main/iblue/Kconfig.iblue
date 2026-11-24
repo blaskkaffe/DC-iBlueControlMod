@@ -58,9 +58,10 @@ menu "iBlueControlMod and Dreamcast extras"
         depends on BLUERETRO_HW_IBLUECONTROLMOD
         default 60
         help
-            Pairing (BT inquiry, blinking LEDs) is only allowed for this long
-            after the console turns on, or after a button tap. Already paired
-            controllers can still reconnect at any time.
+            New controllers can only pair for this long after the console turns on,
+            after a button tap, or after openMenu's "call pair.start" (DC API). Port 1's
+            LED (the next free port's) pulses while pairing is open. Already paired
+            controllers can reconnect at any time.
 
     config BLUERETRO_IBLUE_LED_MAX_PCT
         int "iBlueControlMod: maximum brightness of the LEDs (percent of the PWM duty)"
@@ -68,36 +69,7 @@ menu "iBlueControlMod and Dreamcast extras"
         range 10 100
         default 80
         help
-            The RGB power LED and the four controller port LEDs never get brighter than this.
-
-    config BLUERETRO_IBLUE_BOOT_ANIM
-        bool "iBlueControlMod: controller port LEDs animate while the Dreamcast boot animation plays"
-        depends on BLUERETRO_IBLUE_RGB_LED
-        default y
-        help
-            When the console powers on, the four port LEDs show drops falling on water for the
-            length of the BIOS boot animation (ripples run along the LEDs and bounce off the ends),
-            then show the real state (a lit LED per connected controller). Port LEDs never blink
-            unless a Bluetooth controller is connected.
-
-    config BLUERETRO_IBLUE_BOOT_INTRO
-        bool "iBlueControlMod: before the drops: A, B, C, D light up in turn (0.3 s each) and fade out"
-        depends on BLUERETRO_IBLUE_BOOT_ANIM
-        default y
-        help
-            Port A's pin lights by itself while the chip starts. The intro carries on from it: A is lit for
-            0.3 s and fades out quickly; B lights up when A's 0.3 s are over, is lit for 0.3 s and fades, then C,
-            then D. About 1.4 s, taken from the animation's time.
-
-    config BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS
-        int "iBlueControlMod: time from console power-on until this firmware runs (ms)"
-        depends on BLUERETRO_IBLUE_BOOT_ANIM
-        range 0 5000
-        default 700
-        help
-            The adapter boots while the console already starts: this much of the animation is
-            counted as played when the firmware starts it (bootloader time; the rest is the
-            time since the firmware started).
+            The RGB power LED never gets brighter than this.
 
     config BLUERETRO_IBLUE_GAMEID
         bool "iBlueControlMod: Dreamcast game id from openMenu (reserved VMU block 200)"

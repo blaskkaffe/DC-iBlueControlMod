@@ -15,10 +15,12 @@
 #define NVS_NS "iblue"
 #define NVS_KEY "gest"
 
-/* The single tap does nothing for now (it used to open the pairing window: the window opens by itself
- * for a while after power-on, and a 6 s hold searches); the double tap picks the next colour. */
-static const uint8_t defaults[IBLUE_GEST_MAX] = {IBLUE_ACT_NONE, IBLUE_ACT_NEXT_COLOUR, IBLUE_ACT_NONE};
-static uint8_t map[IBLUE_GEST_MAX] = {IBLUE_ACT_NONE, IBLUE_ACT_NEXT_COLOUR, IBLUE_ACT_NONE};
+/* The single tap opens the pairing window (new controllers pair only while it is open; it also opens by itself for a while
+ * after power-on, and a 6 s hold opens it too); the double tap picks the next colour. */
+static const uint8_t defaults[IBLUE_GEST_MAX] = {IBLUE_ACT_PAIR, IBLUE_ACT_NEXT_COLOUR, IBLUE_ACT_NONE};
+static uint8_t map[IBLUE_GEST_MAX] = {IBLUE_ACT_PAIR, IBLUE_ACT_NEXT_COLOUR, IBLUE_ACT_NONE};
+/* The defaults before 2026-11-24 (the single tap did nothing): a stored map equal to them takes the new defaults */
+static const uint8_t old_defaults[IBLUE_GEST_MAX] = {IBLUE_ACT_NONE, IBLUE_ACT_NEXT_COLOUR, IBLUE_ACT_NONE};
 
 void iblue_gesture_init(void) {
     nvs_handle_t nvs;
@@ -33,7 +35,7 @@ void iblue_gesture_init(void) {
             for (uint32_t i = 0; i < IBLUE_GEST_MAX; i++) {
                 ok = ok && stored[i] < IBLUE_ACT_MAX;
             }
-            if (ok) {
+            if (ok && memcmp(stored, old_defaults, sizeof(stored)) != 0) {
                 memcpy(map, stored, sizeof(map));
             }
         }
@@ -69,16 +71,21 @@ void iblue_gesture_run(uint32_t gesture) {
     switch (act) {
         case IBLUE_ACT_PAIR:
 #ifdef IBLUE_PAIR_WINDOW
-            sys_mgr_pair_window_open();
-#endif
+            sys_mgr_pair_start();
+#else
             if (!bt_hci_get_inquiry()) {
                 bt_hci_start_inquiry();
             }
+#endif
             break;
         case IBLUE_ACT_STOP_PAIRING:
+#ifdef IBLUE_PAIR_WINDOW
+            sys_mgr_pair_stop();
+#else
             if (bt_hci_get_inquiry()) {
                 bt_hci_stop_inquiry();
             }
+#endif
             break;
         case IBLUE_ACT_NEXT_COLOUR:
             iblue_led_toggle_color();

@@ -16,7 +16,7 @@ The board runs a modified BlueRetro v1.9 from the factory, but its pins differ f
 |---|---|---|
 | BlueRetro base | v1.9 (Oct 2023) | Final upstream (Dec 2025): newer controllers, fixes and config options |
 | RGB status LED | Blue, or blinking green/red | **Solid orange** (like the original Dreamcast power LED) or **blue**, your choice |
-| Pairing blink | Port LEDs blink forever until a controller connects | Pairing runs for **60 s** after the console starts, then stops. A **tap** on the button opens it again |
+| Pairing blink | Port LEDs blink forever until a controller connects | Pairing runs for **60 s** after the console starts, then stops. A **tap** on the button opens it again. On the `stepwise` test builds from step 9 the LED of port 1 (the next free port) pulses smoothly while pairing is open, and only then can a new controller pair |
 | PS4/PS5 light bar | BlueRetro default colours | Follows the Dreamcast menu colours: **A orange, B green, C blue, D magenta** |
 | Already-paired controllers | Reconnect | Reconnect at any time, even outside the pairing window |
 | Web config / OTA on blueretro.io | Works | Works |
@@ -36,7 +36,7 @@ Everything else behaves like normal BlueRetro on the Dreamcast: controllers, rum
 
 While you hold the button, the LED blinks faster at each stage (2, 4, then 8 times a second), so you can see what will happen when you let go.
 
-The 30 s hold is your safety net: if a firmware update ever misbehaves, it takes you back to the vendor firmware still stored on the board.
+The 30 s hold only boots the vendor firmware if it is still in the board's factory slot, and only while the console is on; on the owner's board (2026-11-19) it only rebooted. Don't count on it as a way back: the sure way is flashing over the USB-serial header.
 
 ## Installing
 
@@ -105,7 +105,7 @@ BR_HW= BR_SYS=_dreamcast_iblue idf.py reconfigure build
 | Console power sense | 39 |
 | Maple bus ports A–D | 21/22, 3/5, 18/23, 26/27 |
 
-The board has no console power or reset control: GPIO13 and GPIO14 drive the RGB LED, not the console. The controller-port shields are tied to ground, so BlueRetro's wired/wireless auto-switching isn't possible on this board.
+The board has no console power or reset control: GPIO13 and GPIO14 drive the RGB LED, not the console. The ports' sense inputs work (checked in the vendor firmware's machine code): with a physical controller plugged into a port the adapter leaves that port free and moves Bluetooth controllers to the next one.
 
 ## How this fork was made
 

@@ -19,9 +19,12 @@ A request is lines of text: `dc1`, an optional `id N`, an optional `to <who>` (t
 | `port.<A-D>.modes` `.accs` | read only: the values `set` accepts on this device (`normal,dual,keyboard,mouse,racing,maracas` and `none,vmu,rumble,both`). Ports the board does not have answer `unavailable no such port` |
 | `sys.store` | `commit`: changes are live and stored by `call sys.commit` (a device that stores every change itself says `auto`) |
 | `sys.unsaved` | `yes` while a live change waits to be stored, else `no`. `call sys.commit` stores it (`config_update`, as the web config does), `call sys.revert` loads the stored configuration again; both answer `done` or `nothing` and only act when something is waiting. A new game id loads another stored configuration and also clears the flag |
+| `pair.state` | read only: `open` while new controllers can pair (the pairing window is open and the adapter searches; the LED of the port the next controller gets pulses), else `closed`. Paired controllers reconnect either way |
+| `call pair.start` | open the pairing window (60 s, `CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S`) and search, as a single tap of the button: `ok pair.start started` |
+| `call pair.stop` | close the window now: `ok pair.stop done` |
 | `events` | not implemented: `err events unavailable not implemented` |
 
-`led.*`, `pair.*` of the design are not here yet; `port.<X>.layout`, `port.<X>.layouts` and `port.<X>.map.<OUTPUT>` are in (see below); the capability bits say what is: `api` (bit 0), `net` (bit 1), `port` (bit 3), `game` (bit 5) = `0x2B`. Bit 4 was `profile`: profiles are not part of BlueRetro and were removed, the bit is reserved.
+`led.*` of the design is not here yet; `pair.state`, `call pair.start` and `call pair.stop` are (2026-11-24, step 9, not tried on hardware); `port.<X>.layout`, `port.<X>.layouts` and `port.<X>.map.<OUTPUT>` are in (see below); the capability bits say what is: `api` (bit 0), `net` (bit 1), `port` (bit 3), `game` (bit 5) = `0x2B`. Bit 4 was `profile`: profiles are not part of BlueRetro and were removed, the bit is reserved.
 
 **How a change is applied:** the Maple interrupt cannot touch files or restart the wired side, so the engine only queues a message (`FB_TYPE_API_CFG`, three bytes, like the game id); `host.c` hands it to `iblue_dcapi_cfg_apply()` (`iblue/iblue_dcapi_cfg.c`) in the Bluetooth task, which writes `config.out_cfg[]`, and for a mode change asks the system manager for `SYS_MGR_CMD_WIRED_RST`. The answer to the `set` does not wait for that; the engine's own copy of the value changes at once so reading it back shows it.
 

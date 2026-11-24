@@ -5,7 +5,6 @@ import { getAppVersion } from './utils/getAppVersion.js';
 import { getIblueInfo } from './utils/iblueCmd.js';
 import { el } from './panels/ui.js';
 import * as device from './panels/device.js';
-import * as leds from './panels/leds.js';
 import * as buttons from './panels/buttons.js';
 import * as controllers from './panels/controllers.js';
 import * as games from './panels/games.js';
@@ -29,7 +28,6 @@ window.log = function () {
 
 const icons = {
     chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
-    light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     pointer: '<path d="M9 11V5a2 2 0 0 1 4 0v6M13 10V8a2 2 0 0 1 4 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-3a2 2 0 0 1 3-2l2 2"/>',
     gamepad: '<rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 10v5M4.5 12.5h5M15 11h.01M18 14h.01"/>',
     disc: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>',
@@ -43,7 +41,7 @@ const advanced = makeFrames({ id: 'advanced', title: 'Advanced', icon: 'sliders'
     [{ label: 'Mapping', src: 'advance.html' }, { label: 'Input presets', src: 'presets.html' }, { label: 'Files', src: 'files.html' },
      { label: 'Dreamcast VMU', src: 'dc_vmu.html' }, { label: 'N64 Controller Pak', src: 'n64_ctrlpak.html', notDc: true }, { label: 'Debug', src: 'debug.html' }]);
 
-const panels = [device, leds, buttons, controllers, games, update, advanced];
+const panels = [device, buttons, controllers, games, update, advanced];
 
 /* ---- messages ---- */
 function toast(text, kind) {
@@ -211,6 +209,5 @@ $('themeBtn').addEventListener('click', () => {
     const dark = getComputedStyle(document.documentElement).colorScheme.indexOf('dark') !== -1;
     theme(dark ? 'light' : 'dark');
 });
-window.addEventListener('themechange', () => { if (leds.redraw) { leds.redraw(); } });
 window.addEventListener('hashchange', route);
 route();

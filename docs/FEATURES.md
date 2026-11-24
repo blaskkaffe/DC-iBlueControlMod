@@ -8,14 +8,11 @@ Everything below was last reviewed with the owner on 2026-11-01. Where something
 | Feature | What it does | Code | Status |
 |---|---|---|---|
 | Baseline firmware | the hardware-tested RGB build on the newest BlueRetro, kept as it is as the base | `firmware/BlueRetro_iBlueControlMod_RGB_v1.bin` | seen |
-| Port LEDs | never blink without a Bluetooth controller; a connected controller's LED fades in logarithmically | `iblue_port_led.c` | behaviour **seen**, brightness (20 %, a setting) **built** |
-| Power LED | orange (default), blue, custom; fully on at start; blinks while a controller connects; solid during the boot animation; pairing breath starts at full | `iblue_led.c` | **seen**. The blue flash at power-on is the chip's (before any firmware runs): it may need hiding, it is acceptable |
+| Port LEDs | as the vendor firmware: lit with a Bluetooth controller connected, dark otherwise; the LED of the port the next controller gets pulses smoothly while the pairing window is open (2026-11-24: the boot animation, its settings and the fade-in were removed) | `manager.c`, `led.c` | **built** (step 9), not tried |
+| Power LED | orange (default), blue, custom; fully on at start; blinks while a controller connects; pairing breath starts at full | `iblue_led.c` | **seen**. The blue flash at power-on is the chip's (before any firmware runs): it may need hiding, it is acceptable |
 | Colour taps | double tap = next colour; tap and hold on the second tap sweeps the hue, release locks a custom colour | `iblue_tap.c`, `iblue_led.c` | **seen** |
-| Boot animation (drops) | four LEDs as a line through water: drops, ripples, mirror images from the walls, a water level curve | `iblue_anim_curve.c` | **seen** |
-| Intro | the scanner (A, B, C, D) was seen; the **fireworks** intro that replaced it (16 short sparks, faster and faster, then the boom) is **built** | `iblue_anim_curve.c` | scanner seen, fireworks built |
-| Animation settings | length (15 s), controller LED brightness, LED distance, water density, tank length, group position, depth, water level curve; set on the web page, "Save and play" | `iblue_anim_cfg.c`, BLE 0x47 to 0x4A | built, not tried |
-| Start-up order | the chip's lit power LED and port A stay on and the script takes over (no off in between); LED tasks above the start-up task; the error LED leaves GPIO14 alone | `manager.c`, `iblue_port_led.c`, `led.c` | built, looks right in videos |
-| Tap actions | single, double, triple tap, each mappable (nothing, pair, stop pairing, next colour, disconnect, game id on/off); single and triple do nothing by default | `iblue_gesture.c` | **seen**; the list of actions needs changes and settings (see TODO) |
+| Start-up order | the power LED is taken over first thing in its saved colour; the error LED channel leaves GPIO14 (green) alone and starts on the port 1 LED | `manager.c`, `led.c` | built |
+| Tap actions | single, double, triple tap, each mappable (nothing, pair, stop pairing, next colour, disconnect, game id on/off); the single tap opens the pairing window by default (2026-11-24), the triple does nothing | `iblue_gesture.c` | **seen** (the new single tap default: built); the list of actions needs changes and settings (see TODO) |
 | Dreamcast game id | openMenu writes the game's product number into one reserved VMU block, the adapter makes it BlueRetro's game id, so a game can have its own configuration (`DC_<id>`) | `iblue_gameid.c`, openMenu `claude/gameid` | built, **not tested** (needs the openMenu side and the VMU accessory on) |
 | Game id switch | a tap action turns game ids on and off (the LED dips once for on, twice for off) | `iblue_gameid_ctl.c` | **seen** |
 | Maracas output mode (Samba de Amigo, phase 1: the two sticks are the two maracas, L1 / R1 shake, L2 = C, R2 / Start = Start; a preset on the web page) | `maple.c`, `docs/samba-de-amigo.md` | built, **not tried with the game** |
@@ -24,7 +21,7 @@ Everything below was last reviewed with the owner on 2026-11-01. Where something
 
 ## Web config (`web/`, published on GitHub Pages from `gh-pages`)
 
-One page and one Bluetooth connection (redesigned 2026-11): a menu of categories (Device, LEDs, Buttons, Controllers, Games, Update, Advanced), light and dark, usable on a phone. The iBlue settings are panels (`web/panels/`); the BlueRetro pages (mapping, update, files, VMU, N64 pak, debug) are shown inside it on the same connection. A **Dreamcast only** setting hides the other consoles. See `web/README.md`. Status: works against a mocked adapter (71 checks); not tried on a real adapter.
+One page and one Bluetooth connection (redesigned 2026-11): a menu of categories (Device, Buttons, Controllers, Games, Update, Advanced; the LEDs page went with the boot animation), light and dark, usable on a phone. The iBlue settings are panels (`web/panels/`); the BlueRetro pages (mapping, update, files, VMU, N64 pak, debug) are shown inside it on the same connection. A **Dreamcast only** setting hides the other consoles. See `web/README.md`. Status: works against a mocked adapter (71 checks); not tried on a real adapter.
 
 ## On other branches
 

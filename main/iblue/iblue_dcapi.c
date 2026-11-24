@@ -62,6 +62,10 @@ DSTR(S_RANGE_ONOFF, " range off or on");
 DSTR(S_MOTION_OFF, " unavailable motion mode is off");
 DSTR(S_BADARG, " bad seconds 0 to 30");
 DSTR(S_STARTED, "started");
+DSTR(S_PAIR_START, "pair.start");
+DSTR(S_PAIR_STOP, "pair.stop");
+DSTR(S_OPEN, "open");
+DSTR(S_CLOSED, "closed");
 DSTR(S_ON, "on");
 DSTR(S_OFF, "off");
 DSTR(S_WAITING, "waiting");
@@ -90,7 +94,7 @@ static DRAM_ATTR const char dc_names[MODE_COUNT][24] = {"Dreamcast Controller", 
     "Racing Controller", "Maracas Controller"};
 #define PORT_ID_BASE 100 /* key ids of the port keys: 100 + port * 8 + field */
 
-enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_MOTION_MODE, K_MOTION_STATE, K_MOTION_LEFT, K_MOTION_RIGHT, K_MOTION_LH, K_MOTION_RH, K_COUNT };
+enum { K_KIND, K_NAME, K_VERSION, K_API, K_CAPS, K_GAME, K_NET, K_UNSAVED, K_STORE, K_MOTION_MODE, K_MOTION_STATE, K_MOTION_LEFT, K_MOTION_RIGHT, K_MOTION_LH, K_MOTION_RH, K_PAIR, K_COUNT };
 #define K_HELLO_LAST K_CAPS
 static DRAM_ATTR const struct {
     char name[24];
@@ -99,13 +103,14 @@ static DRAM_ATTR const struct {
     {"hello.kind", K_KIND}, {"hello.name", K_NAME}, {"hello.version", K_VERSION}, {"hello.api", K_API},
     {"hello.caps", K_CAPS}, {"game.id", K_GAME}, {"net.selected", K_NET}, {"sys.unsaved", K_UNSAVED}, {"sys.store", K_STORE},
     {"motion.mode", K_MOTION_MODE}, {"motion.state", K_MOTION_STATE}, {"motion.left", K_MOTION_LEFT}, {"motion.right", K_MOTION_RIGHT},
-    {"motion.left.height", K_MOTION_LH}, {"motion.right.height", K_MOTION_RH},
+    {"motion.left.height", K_MOTION_LH}, {"motion.right.height", K_MOTION_RH}, {"pair.state", K_PAIR},
 };
 
 #define VERSION_MAX 32
 static DRAM_ATTR char version[VERSION_MAX + 1];
 static DRAM_ATTR volatile uint8_t net_selected; /* 0 = not set, 1 = dcnow, 2 = dcnet */
 static DRAM_ATTR volatile uint8_t unsaved; /* a live change waits for sys.commit */
+static DRAM_ATTR volatile uint8_t pair_open; /* new controllers can pair (the pairing window is open and the adapter searches) */
 /* Joy-Con motion (normal code sets it, iblue_dcapi_motion_set()): the firmware has it, mode on, and per side (left, right) 0 no
  * Joy-Con followed, 1 followed but forward not set, 2 followed and calibrated */
 static DRAM_ATTR volatile uint8_t motion_avail, motion_mode, motion_pad[2];
@@ -249,6 +254,9 @@ static int IRAM_ATTR key_value(struct out *o, uint8_t id) {
             return 0;
         case K_UNSAVED:
             o_str(o, unsaved ? S_YES : S_NO);
+            return 0;
+        case K_PAIR:
+            o_str(o, pair_open ? S_OPEN : S_CLOSED);
             return 0;
         case K_STORE:
             o_str(o, S_STORE);
@@ -877,6 +885,22 @@ size_t IRAM_ATTR iblue_dcapi_handle(const char *req, size_t req_len, char *out, 
                     o_end_line(&o);
                 }
             }
+            else if (eq(line + b, e - b, S_PAIR_START) || eq(line + b, e - b, S_PAIR_STOP)) {
+                /* as a tap of the button: open the pairing window (the port LED pulses) or close it */
+                int start = eq(line + b, e - b, S_PAIR_START);
+
+                if (!iblue_dcapi_cfg_request(IBLUE_CFG_PAIR, (uint8_t)start, 0)) {
+                    line_err(&o, line + b, e - b, S_BUSY);
+                }
+                else {
+                    pair_open = (uint8_t)start;
+                    o_str(&o, S_OK);
+                    o_mem(&o, line + b, e - b);
+                    o_str(&o, S_SP);
+                    o_str(&o, start ? S_STARTED : S_DONE);
+                    o_end_line(&o);
+                }
+            }
             else if (motion_avail && eq(line + b, e - b, S_MOTION_RESET)) {
                 if (!iblue_dcapi_cfg_request(IBLUE_CFG_MOTION_RESET, 0, 0)) {
                     line_err(&o, line + b, e - b, S_BUSY);
@@ -1006,6 +1030,10 @@ void iblue_dcapi_motion_set(uint8_t mode, uint8_t left, uint8_t right) {
     motion_pad[0] = left > 2 ? 2 : left;
     motion_pad[1] = right > 2 ? 2 : right;
     motion_avail = 1;
+}
+
+void iblue_dcapi_pair_set(uint8_t open) {
+    pair_open = open ? 1 : 0;
 }
 
 void iblue_dcapi_motion_height(uint8_t side, int degrees) {

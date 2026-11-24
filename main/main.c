@@ -98,8 +98,8 @@ static void wl_init_task(void *arg) {
 
     err_led_init(chip_package);
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
-    /* After err_led_init: that one puts its pulse on GPIO14, a colour of the RGB LED, and the last to
-     * route a pin wins */
+    /* The power LED first, before the file system and Bluetooth start (err_led_init leaves GPIO14, a colour of the
+     * RGB LED, alone and starts its pulse channel on the port 1 LED) */
     sys_mgr_iblue_early();
 #endif
 

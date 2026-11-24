@@ -65,8 +65,20 @@ int main(void) {
     SAME(ask("dc1\nset net.selected dcnow\nget net.*\n"), "dc1\nok net.selected dcnow\nok net.selected dcnow\n");
     SAME(ask("dc1\nset net.selected pizza\nget net.selected\n"), "dc1\nerr net.selected range dcnow or dcnet\nok net.selected dcnow\n");
     game("DC_TEST");
-    SAME(ask("dc1\nget *\n"), "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version v0.8-12-g1a2b3c4_dirty\nok hello.api 1\nok hello.caps api,net,port,game\nok game.id DC_TEST\nok net.selected dcnow\nok sys.unsaved no\nok sys.store commit\n");
+    SAME(ask("dc1\nget *\n"), "dc1\nok hello.kind adapter\nok hello.name iBlueControlMod\nok hello.version v0.8-12-g1a2b3c4_dirty\nok hello.api 1\nok hello.caps api,net,port,game\nok game.id DC_TEST\nok net.selected dcnow\nok sys.unsaved no\nok sys.store commit\nok pair.state closed\n");
     SAME(ask("dc1\nget game.*\nget hello.c*\n"), "dc1\nok game.id DC_TEST\nok hello.caps api,net,port,game\n");
+
+    /* pairing: call pair.start / pair.stop ask the firmware (as a tap of the button), pair.state follows */
+    nreq = 0;
+    SAME(ask("dc1\ncall pair.start\nget pair.state\n"), "dc1\nok pair.start started\nok pair.state open\n");
+    CHECK(nreq == 1 && reqs[0].op == IBLUE_CFG_PAIR && reqs[0].a == 1);
+    SAME(ask("dc1\ncall pair.stop\nget pair.*\n"), "dc1\nok pair.stop done\nok pair.state closed\n");
+    CHECK(nreq == 2 && reqs[1].op == IBLUE_CFG_PAIR && reqs[1].a == 0);
+    iblue_dcapi_pair_set(1);
+    SAME(ask("dc1\nget pair.state\nset pair.state closed\n"), "dc1\nok pair.state open\nerr pair.state readonly\n");
+    iblue_dcapi_pair_set(0);
+    SAME(ask("dc1\ncall pair.begin\n"), "dc1\nerr pair.begin unknown\n");
+    nreq = 0;
 
     /* ports: nothing until the firmware says how many the board has */
     SAME(ask("dc1\nget port.A.state\nget port.*\n"), "dc1\nerr port.A.state unavailable no such port\nerr port.* unknown\n");

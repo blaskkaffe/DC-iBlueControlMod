@@ -2,6 +2,15 @@
 
 Newest first. "Done" is what actually happened; "To do" is what is still open.
 
+## 2026-11-24: boot animation removed; pairing as the vendor firmware, with `pair.*` in the DC API
+
+**Done** (DC-iBlueControlMod `stepwise`, step 9)
+- The LED boot animation (drops, fireworks intro), its settings (BLE 0x47-0x4A, feature bit 3, NVS `iblue/anim`, Kconfig `BOOT_ANIM*` / `BOOT_INTRO`), the port LED fade-in and the web config's LEDs page are gone. The port LEDs work as in the vendor firmware: lit with a controller, and the LED of the port the next controller gets pulses smoothly while the pairing window is open.
+- New controllers pair only while the window is open (60 s at start-up, console power-on, a single tap: now the default tap action, or DC API `call pair.start`; `call pair.stop`, `get pair.state`). Paired controllers reconnect at any time.
+
+**To do**
+- Try it on hardware.
+
 ## 2026-11-09: first ESP-IDF build of `unified`; Samba de Amigo ported; DreamDash port status on 0x50
 
 **Done**

@@ -3,8 +3,6 @@
 set -e
 d=$(cd "$(dirname "$0")" && pwd)
 out=$(mktemp -d)
-cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/anim" "$d/test_anim.c" "$d/../../iblue/iblue_anim_curve.c" -lm
-"$out/anim"
 cc -Wall -Wextra -Werror -fsanitize=address,undefined -I"$d/../.." -o "$out/tap" "$d/test_tap.c" "$d/../../iblue/iblue_tap.c"
 "$out/tap"
 # the game id (Maple command 0x21), with a few stubs instead of ESP-IDF

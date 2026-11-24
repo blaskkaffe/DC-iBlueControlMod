@@ -78,14 +78,13 @@ void err_led_init(uint32_t package) {
         err_led_pin = PICO_ERR_LED_PIN;
     }
 
-    ledc_timer_config(&ledc_timer);
-#ifndef CONFIG_BLUERETRO_IBLUE_RGB_LED
-    ledc_channel_config(&ledc_channel);
-#else
-    (void)ledc_channel;
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+    /* GPIO14 is the green of the RGB LED, so on the iBlueControlMod this channel starts on the port 1 LED (GPIO15)
+     * instead: it is the pairing pulse, which the system manager moves to the LED of the next free port. */
+    ledc_channel.gpio_num = 15;
 #endif
-    /* (On the iBlueControlMod the error LED channel is not set up: GPIO14 is the green of the RGB LED and the
-     * channel would take the pin from the chip's state, changing the colour, until iblue_led takes over.) */
+    ledc_timer_config(&ledc_timer);
+    ledc_channel_config(&ledc_channel);
     ledc_fade_func_install(0);
     ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, hw_config.led_pulse_off_duty_cycle, 0);
 

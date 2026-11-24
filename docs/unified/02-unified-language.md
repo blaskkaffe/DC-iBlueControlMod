@@ -52,7 +52,7 @@ Existing material to reuse: IB `iBLU` info + feature bits, DD `launcher` announc
 
 ## 5. Command and ID tables (C-1)
 
-- One **reserved-ID table per channel**, kept in one shared doc. IB's BLE today: 0x40 info, 0x41-0x42 gestures, 0x43-0x46 profiles, 0x47-0x4A animation, 0x4B-0x4F motion. Port status must take a new number (not 0x4B), and DC-DreamDash's iBlue proto module must follow the table.
+- One **reserved-ID table per channel**, kept in one shared doc. IB's BLE today: 0x40 info, 0x41-0x42 gestures, 0x43-0x46 profiles (retired), 0x47-0x4A animation (retired 2026-11-24), 0x4B-0x4F motion. Port status must take a new number (not 0x4B), and DC-DreamDash's iBlue proto module must follow the table.
 - Names of commands identical across channels where the meaning is identical (`PROFILE_SAVE`, `PROFILE_LOAD`, `GAME_SET`, `PORT_INFO`, `COMMIT`, `REVERT`).
 - Framing: magic, protocol version, sequence number, CRC32 for anything carried over an unreliable path.
 
@@ -62,7 +62,7 @@ Existing material to reuse: IB `iBLU` info + feature bits, DD `launcher` announc
 |---|---|---|
 | `pi-http` (PPP over modem or serial) | openMenu ↔ DC-DreamDash | game list, launch, `/tag`, `/players`, events, `POST /dcnow` `/dcnet` |
 | *new Dreamcast ↔ adapter channel* (D-2) | openMenu ↔ DC-iBlueControlMod | **to be designed**; brctl and the VMU-block channel are only ideas |
-| `ble-cfg` (Bluetooth LE) | web page, DC-DreamDash ↔ DC-iBlueControlMod | config, animation, profiles, motion |
+| `ble-cfg` (Bluetooth LE) | web page, DC-DreamDash ↔ DC-iBlueControlMod | config, motion, port status (animation and profiles retired) |
 | `usb-sd`, `usb-net`, `usb-serial` | DC-PicoLink ↔ Pi/PC | SD image, W5500 frames, coder's cable, STATS |
 | file state (`/opt/dreampi-netswitch/*`, `/tmp/…`) | DreamDash modules | cross-process state, no sockets |
 

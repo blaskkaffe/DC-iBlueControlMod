@@ -29,6 +29,9 @@ void sys_mgr_iblue_early(void);
 #define IBLUE_PAIR_WINDOW 1
 #include <stdbool.h>
 void sys_mgr_pair_window_open(void);
+/* open the pairing window and search for new controllers (the button tap, DC API call pair.start); close it now (call pair.stop) */
+void sys_mgr_pair_start(void);
+void sys_mgr_pair_stop(void);
 bool sys_mgr_pairing_allowed(void);
 #endif
 

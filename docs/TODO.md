@@ -25,17 +25,17 @@ Order of the day: **organise and restructure first** (one branch, one place for 
 - **Wanted next for motion** (checked 2026-11-10, nothing written): (1) motion keys in the DC API (`motion.*`, taking a pose), today only the web page can calibrate; (2) calibration by targets: point at each of the game's six positions instead of the four poses; needs the stick values the game expects, to be measured in the game; (3) Wii Remote: read the accelerometer (height and shake work; left / right needs MotionPlus or the sensor bar; a Nunchuk is the second maraca); (4) light gun: see `docs/lightgun.md`.
 
 ## Fixes and checks
-- **Test**: brightness of a connected controller (20 %), the animation settings, the fireworks intro, the start-up order, game id with openMenu, Racing mode, `brctl`.
+- **Test**: the pairing pulse on port 1 (step 9: only while the window is open; a single tap, `call pair.start`; paired controllers reconnecting with it closed), the start-up order, game id with openMenu, Racing mode, `brctl`.
 
 - **brctl**: the control channel over the Maple bus (status, config read and write, LED and pairing control, remappable gestures; it is on `development`). (The game id no longer uses a VMU mailbox: it arrives as Maple command 0x21 like on the other adapters, see `led-and-gameid.md`.)
 - **Hotkeys**: a tap or Home + button that cycles a port's controller type (normal / dual stick / ...). Whole-configuration profiles were removed on `unified` (not in BlueRetro, not wanted); the per-game settings from openMenu stay (written on `claude/restructure`).
 - **The openMenu Controllers screen** (remapping, type, rumble, VMU, per-button settings): on `claude/iblue-controllers` in openMenu-Virtual-Folder-Bundle; it needs brctl.
 - **A better factory reset**: the 10 s hold is too easy to trigger. Per-game configurations are already kept through it.
-- **Measure the BIOS boot animation** on a real console and set the length of the animation on the web config (LED settings; default 15 s); check the 700 ms of adapter start-up (`BLUERETRO_IBLUE_BOOT_ANIM_BOOT_MS`).
 - **Plain HW1/HW2 builds** with these features (`dreamcast_openmenu` configs on `claude/restructure`): kept for now.
 - Hide the blue flash of the power LED at power-on: it is the chip's, before the firmware runs; acceptable for now.
 
 ## Dropped
+- The LED boot animation (drops, fireworks intro), its settings (BLE 0x47-0x4A, feature bit 3, the web config's LEDs page) and the port LED fade-in (2026-11-24): annoying; the port LEDs work as in the vendor firmware again, with a smooth pairing pulse.
 - A port D (or any port) that is always there but not a controller.
 - DreamPi / DC-DreamDash talking to the adapter over Bluetooth (2026-11-19): DC-DreamDash's `ibluecontrol` module and the firmware's BLE DC API tunnel `0x51` are removed. Port status `0x50` stays for the web config.
 

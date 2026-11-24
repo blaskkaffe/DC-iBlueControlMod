@@ -22,7 +22,6 @@
 #include "bluetooth/host.h"
 #include "bluetooth/hci.h"
 #include "iblue_led.h"
-#include "iblue_port_led.h"
 
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 
@@ -136,10 +135,6 @@ static void iblue_led_task(void *arg) {
                 uint32_t period = 1000 / hz;
                 level = ((t % period) < (period / 2)) ? IBLUE_LED_MAX_DUTY : 0;
             }
-        }
-        else if (iblue_port_led_busy()) {
-            /* the boot animation plays on the port LEDs: the power LED stays solid until it is over */
-            solid = 1;
         }
         else if (connect_ms && connect_ms < IBLUE_LED_CONNECT_MAX_MS) {
             /* a controller is connecting: blink in the chosen colour until it is ready */

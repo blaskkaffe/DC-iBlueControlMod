@@ -22,6 +22,10 @@
  *    motion.left.height / motion.right.height  degrees above (+) or below (-) level, -90..90, while that side is calibrated (live)
  *    call motion.pose.forward|up|down|out [seconds]    take a calibration pose after the seconds (default 5, 0 to 30), Joy-Cons held still
  *    call motion.reset                                  forget the learned pointing directions and ranges
+ *    pair.state        open | closed (read only): new controllers can pair only while it is open (port 1's LED, the LED of the
+ *                      port the next controller gets, pulses); paired controllers reconnect at any time
+ *    call pair.start   open the pairing window (CONFIG_BLUERETRO_IBLUE_PAIR_WINDOW_S, 60 s) and search, as a tap of the button
+ *    call pair.stop    close it now
  *    port.<A-D>.name   what the Dreamcast sees on the port (read only)
  *    port.<A-D>.layout   standard | all | custom: a named button arrangement (the whole mapping). Setting standard or all replaces the
  *                      pad mapping of the port; custom is what a port has when it matches none (it cannot be set, edit a map line)
@@ -78,6 +82,7 @@
 #define IBLUE_CFG_MOTION_MODE 10 /* a = 1 on, 0 off: kept in flash at once */
 #define IBLUE_CFG_MOTION_POSE 11 /* a = pose (0 forward, 1 up, 2 down, 3 out), b = seconds until it is taken */
 #define IBLUE_CFG_MOTION_RESET 12 /* forget the learned pointing directions and ranges */
+#define IBLUE_CFG_PAIR 13        /* a = 1 open the pairing window and search, 0 close it (5 and 6 were the old map ops: not reused) */
 #define IBLUE_CFG_GAME_RELOAD 9 /* load the configuration of the running game again (the connected controllers changed) */
 /* Both return 1 when the message is queued, 0 when it was dropped (queue full or muted; for the map also: the mailbox is still busy).
  * The engine then answers err busy and changes nothing it has told the caller about. */
@@ -108,8 +113,6 @@ size_t iblue_dcapi_maple(const uint8_t *wire, size_t n, uint8_t *out_wire);
 /* The 24 bytes after the 16 byte marker in the extended device info: "dc1 " + caps as 8 hex digits, NUL padded, word-reversed. */
 void iblue_dcapi_ext_caps(uint8_t *wire24);
 
-/* BLE: write the chunks of a request (first byte: bit0 = first chunk, bit1 = last chunk; then up to max-1 bytes of text).
- * After the last chunk the request is answered; read returns the answer: first byte 1 = more follows (read again), 0 = last. */
 /* The ports, from normal code (manager.c, every time it maps Bluetooth controllers to ports): count of ports the board has and,
  * per port, the state (IBLUE_PORT_*), the configured output mode and accessory mode, and the Bluetooth type / subtype. */
 void iblue_dcapi_port_count(uint32_t count);
@@ -124,6 +127,8 @@ void iblue_dcapi_motion_set(uint8_t mode, uint8_t left, uint8_t right);
 /* The height of the Joy-Con of a side (0 left, 1 right) in degrees above (+) or below (-) level, from the motion code at every report;
  * keys motion.left.height / motion.right.height while that side is calibrated (forward set). */
 void iblue_dcapi_motion_height(uint8_t side, int degrees);
+/* Whether new controllers can pair now (key pair.state), from normal code (manager.c) */
+void iblue_dcapi_pair_set(uint8_t open);
 
 
 #else
@@ -135,6 +140,7 @@ void iblue_dcapi_motion_height(uint8_t side, int degrees);
 #define iblue_dcapi_port_layout(port, layout)
 #define iblue_dcapi_motion_set(mode, left, right)
 #define iblue_dcapi_motion_height(side, degrees)
+#define iblue_dcapi_pair_set(open)
 #endif
 
 #endif /* _IBLUE_DCAPI_H_ */

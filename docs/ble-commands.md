@@ -14,7 +14,7 @@ Why this exists: two branches and one other repository each picked `0x4B` (Joy-C
 | **0x40** | `GET_IBLUE_INFO` (`iBLU`, version, features, counts) | yes | |
 | **0x41-0x42** | `GET_GESTURES` / `SET_GESTURES` (tap actions) | yes | |
 | 0x43-0x46 | were `GET_PROFILE` ... `PROFILE_DELETE`: **removed** (profiles are not in BlueRetro and were not wanted); do not reuse the numbers for something else without checking old web pages | no, **retired** | |
-| **0x47-0x4A** | LED / boot animation settings: get, set, play now, defaults | **built** (merged from `claude/integration`, 2026-11-09; builds in CI for hw2 dreamcast_iblue, not tried on hardware) | |
+| ~~0x47-0x4A~~ | were the LED / boot animation settings (get, set, play now, defaults) | **removed** 2026-11-24 with the boot animation; stay unused | |
 | **0x4B-0x4F** | Joy-Con motion (maracas): get settings, set settings, pose, status, forget calibration | **built** (merged from `claude/integration`, 2026-11-09; builds in CI for hw2 dreamcast_iblue, not tried on hardware) | |
 | **0x50** | `GET_PORT_STATUS` (read only; answer below) | **built** (with `CONFIG_BLUERETRO_IBLUE_DCAPI`), not tried on hardware | DC-DreamDash `claude/iblue-ports` used `0x4B` for it; moved to `0x50` there too (2026-11-09) |
 | ~~0x51~~ | was the DC API over Bluetooth, for DreamPi / DC-DreamDash | **removed** 2026-11-19 (the DreamPi link was dropped); stays unused | |
@@ -31,7 +31,7 @@ Numbers not listed (0x08-0x0F, 0x15-0x36, 0x3A-0x3F, 0x5B-0xA4, 0xA6-0xDD, 0xDF-
 | 0 | 0x01 | tap gestures | yes |
 | 1 | 0x02 | was profiles: **retired**, always 0 | no |
 | 2 | 0x04 | Dreamcast game id from openMenu (Maple command `0x21`) | yes (with `BLUERETRO_IBLUE_GAMEID`) |
-| 3 | 0x08 | LED / animation settings (0x47-0x4A) | **built** (merged 2026-11-09) |
+| 3 | 0x08 | was the LED / animation settings (0x47-0x4A) | **removed** 2026-11-24, always 0, stays unused |
 | 4 | 0x10 | Joy-Con motion (0x4B-0x4F) | **built** (merged 2026-11-09) |
 | **5** | **0x20** | **port status (0x50)** | built, not tried on hardware |
 | 6 | 0x40 | was the DC API tunnel (0x51) | **removed** 2026-11-19, stays unused |
