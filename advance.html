@@ -1,0 +1,207 @@
+<!doctype html>
+<!--
+Copyright 2026 Google Inc. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <title>BlueRetro Advance config</title>
+    <script>
+      // Add a global error event listener early on in the page load, to help ensure that browsers
+      // which don't support specific functionality still end up displaying a meaningful message.
+      window.addEventListener('error', function(error) {
+        if (ChromeSamples && ChromeSamples.setStatus) {
+          console.error(error);
+          ChromeSamples.setStatus(error.message + ' (Your browser may not support this feature.)');
+          error.preventDefault();
+        }
+      });
+    </script>
+    
+    
+    
+    
+    <link rel="icon" href="icon.png">
+    
+    <script>
+      /* Inside the app page (index.html) the page is shown without its own heading and menu (?embed=1) */
+      if (new URLSearchParams(location.search).has('embed')) { document.documentElement.classList.add('embed'); }
+    </script>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/app.css">
+    <link rel="stylesheet" href="styles/embed.css">
+    
+    
+  </head>
+
+  <body>
+    <img class="pageIcon" src="icon.png">
+    <h1>BlueRetro Advance config</h1>
+    <p class="availability">
+      <a href="index.html">Index</a> |
+      <a target="_blank" href="https://github.com/blaskkaffe/iBlueControlMod">iBlueControlMod on GitHub</a> |
+      <a target="_blank" href="https://github.com/darthcloud/BlueRetro">BlueRetro on GitHub</a>
+    </p>
+    <script>
+  if('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js');
+  }
+</script>
+
+<script>
+  window.addEventListener('DOMContentLoaded', function() {
+    const searchParams = new URL(location).searchParams;
+    const inputs = Array.from(document.querySelectorAll('input[id]'));
+
+    inputs.forEach(input => {
+      if (searchParams.has(input.id)) {
+        if (input.type == 'checkbox') {
+          input.checked = searchParams.get(input.id);
+        } else {
+          input.value = searchParams.get(input.id);
+          input.blur();
+        }
+      }
+      if (input.type == 'checkbox') {
+        input.addEventListener('change', function(event) {
+          const newSearchParams = new URL(location).searchParams;
+          if (event.target.checked) {
+            newSearchParams.set(input.id, event.target.checked);
+          } else {
+            newSearchParams.delete(input.id);
+          }
+          history.replaceState({}, '', Array.from(newSearchParams).length ?
+              location.pathname + '?' + newSearchParams : location.pathname);
+        });
+      } else {
+        input.addEventListener('input', function(event) {
+          const newSearchParams = new URL(location).searchParams;
+          if (event.target.value) {
+            newSearchParams.set(input.id, event.target.value);
+          } else {
+            newSearchParams.delete(input.id);
+          }
+          history.replaceState({}, '', Array.from(newSearchParams).length ?
+              location.pathname + '?' + newSearchParams : location.pathname);
+        });
+      }
+    });
+  });
+</script>
+
+
+<div class="intro-block">
+<p align="center"><a href="https://blueretro.com/products/brx"><img src="brx_banner.png"/></a></p><br>
+
+Please consult the documentation found on the wiki:<br>
+<a href="https://github.com/darthcloud/BlueRetro/wiki/BlueRetro-BLE-Web-Config-User-Manual#2---advance-config-page" target="_blank">2 - Advance config page</a><br><br>
+</div>
+
+<div id="divBtConn">
+    <button id="btConn">Connect BlueRetro</button><br>
+    <small><i>Disconnect all controllers from BlueRetro before connecting for configuration.</i></small>
+</div>
+<div id="divInfo" style="display:none;margin-bottom:1em;"></div>
+<div id="divCfgSel" style="display:none;margin-bottom:1em;">
+</div>
+<div id="divGlobalCfg" style="display:none;margin-bottom:1em;">
+</div>
+<div id="divOutputCfg" style="display:none;margin-bottom:1em;">
+</div>
+<div id="divInputCfg" style="display:none;margin-bottom:1em;">
+</div>
+
+<script>
+  var ChromeSamples = {
+    log: function() {
+      var line = Array.prototype.slice.call(arguments).map(function(argument) {
+        return typeof argument === 'string' ? argument : JSON.stringify(argument);
+      }).join(' ');
+
+      document.querySelector('#log').textContent += line + '\n';
+    },
+
+    clearLog: function() {
+      document.querySelector('#log').textContent = '';
+    },
+
+    setStatus: function(status) {
+      document.querySelector('#status').textContent = status;
+    },
+
+    setContent: function(newContent) {
+      var content = document.querySelector('#content');
+      while(content.hasChildNodes()) {
+        content.removeChild(content.lastChild);
+      }
+      content.appendChild(newContent);
+    }
+  };
+</script>
+
+<h3>Live Output</h3>
+<div id="output" class="output">
+  <div id="content"></div>
+  <div id="status"></div>
+  <pre id="log"></pre>
+</div>
+
+
+
+
+<script src='sql.js/sql-wasm.js'></script>
+<script type="module">
+  import { btConn } from './advance.js';
+
+  document.getElementById("btConn").addEventListener('click', function() {
+    if (isWebBluetoothEnabled()) {
+      ChromeSamples.clearLog();
+      btConn();
+    }
+  });
+</script>
+
+<script>
+  log = ChromeSamples.log;
+
+  function isWebBluetoothEnabled() {
+    if (navigator.bluetooth) {
+      return true;
+    } else {
+      ChromeSamples.setStatus('Web Bluetooth API is not available.\n' +
+          'Please make sure the "Experimental Web Platform features" flag is enabled.');
+      return false;
+    }
+  }
+</script>
+
+
+    <script>
+      /* In the app page: connect at once with the connection of the app, without a click */
+      window.addEventListener('load', function() {
+        try {
+          var b = document.getElementById('btConn');
+          if (document.documentElement.classList.contains('embed') && window.parent.iblueConn && window.parent.iblueConn.service && b) {
+            b.click();
+          }
+        } catch (e) { /* not embedded */ }
+      });
+    </script>
+    
+  </body>
+</html>

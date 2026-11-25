@@ -1,0 +1,15 @@
+/* A BlueRetro page shown inside the app page (html.embed): the same look, without the page's own heading, banner and
+ * documentation links. */
+html.embed body { width: auto; max-width: none; margin: 0; padding: 18px 20px 30px; background: transparent; color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+html.embed h1, html.embed .availability, html.embed .pageIcon, html.embed .intro-block, html.embed #divBtConn { display: none !important; }
+html.embed h2, html.embed h3 { margin-top: 1.4em; margin-bottom: .4em; }
+html.embed button { appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 7px 14px; border-radius: 10px; font: inherit; font-weight: 550; cursor: pointer; }
+html.embed button:hover { background: var(--surface-2); }
+html.embed button:disabled { opacity: .5; cursor: not-allowed; }
+html.embed input, html.embed select, html.embed textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px 7px; }
+html.embed input[type=range] { accent-color: var(--accent); }
+html.embed a { color: var(--accent); }
+html.embed .output { background: var(--surface-2); border-radius: 12px; margin: 18px 0 0; padding: 10px 14px; }
+html.embed #log { color: var(--muted); }
+html.embed table { border-collapse: collapse; }
+html.embed td, html.embed th { border-color: var(--border); }
