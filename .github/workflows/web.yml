@@ -1,8 +1,10 @@
 name: Web config
 
+# The page is published from `main` at the root of GitHub Pages, and the page of the `stepwise` test builds under /test/
+# (both are built on every push to either branch, so one never removes the other).
 on:
   push:
-    branches: [main, claude/web-config, claude/integration]
+    branches: [main, stepwise, claude/web-config, claude/integration]
     paths: ['web/**', '.github/workflows/web.yml']
   workflow_dispatch:
 
@@ -14,16 +16,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+      - uses: actions/checkout@v4
+        with:
+          ref: stepwise
+          path: stepwise
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
           bundler-cache: true
-          working-directory: web
+          working-directory: main/web
       - name: Build
-        working-directory: web
-        run: bundle exec jekyll build --destination ../_site
+        run: |
+          (cd main/web && bundle exec jekyll build --destination "$GITHUB_WORKSPACE/_site")
+          (cd stepwise/web && BUNDLE_GEMFILE="$GITHUB_WORKSPACE/main/web/Gemfile" bundle exec jekyll build --destination "$GITHUB_WORKSPACE/_test")
+          mkdir -p _site/test && cp -r _test/. _site/test/
       - name: Publish to gh-pages
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stepwise' || github.event_name == 'workflow_dispatch'
         run: |
           touch _site/.nojekyll
           cd _site
@@ -31,5 +42,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@users.noreply.github.com"
           git add -A
-          git commit -qm "Publish web config"
+          git commit -qm "Publish web config (main, and stepwise under /test/)"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" gh-pages

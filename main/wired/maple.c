@@ -140,6 +140,13 @@ static const uint8_t gpio_pin[][2] = {
 #endif
 };
 
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+/* Port check (iblue_portcheck.c): frames the interrupt saw, answers it sent, frames it gave up on, per port */
+DRAM_ATTR volatile uint32_t maple_diag_rx[4];
+DRAM_ATTR volatile uint32_t maple_diag_tx[4];
+DRAM_ATTR volatile uint32_t maple_diag_abort[4];
+#endif
+
 static uint8_t pin_to_port[] = {
     0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -253,6 +260,9 @@ static uint8_t maple_tx(uint32_t port, uint32_t maple0, uint32_t maple1, uint8_t
     *crc = 0x00;
 
     delay_us(55);
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    maple_diag_tx[port & 3]++;
+#endif
 
     GPIO.out_w1ts = maple0 | maple1;
     gpio_set_direction_iram(gpio_pin[port][0], GPIO_MODE_OUTPUT);
@@ -398,6 +408,9 @@ static unsigned maple_rx(unsigned cause) {
 maple_end:
         core0_stall_end();
         port = pin_to_port[(__builtin_ffs(maple0) - 1)];
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+        maple_diag_rx[port & 3]++;
+#endif
         bad_frame = ((bit_cnt - 1) % 8);
 
 #ifdef CONFIG_BLUERETRO_WIRED_TRACE
@@ -815,6 +828,9 @@ maple_end:
 
 maple_abort:
     core0_stall_end();
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    maple_diag_abort[pin_to_port[(__builtin_ffs(maple0) - 1)] & 3]++;
+#endif
     GPIO.status_w1tc = maple0;
     return 0;
 }
@@ -839,6 +855,13 @@ void maple_init(uint32_t package)
 #endif
     intexc_alloc_iram(ETS_GPIO_INTR_SOURCE, 19, maple_rx);
 }
+
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+void maple_port_pins(uint32_t port, uint8_t *pin0, uint8_t *pin1) {
+    *pin0 = gpio_pin[port][0];
+    *pin1 = gpio_pin[port][1];
+}
+#endif
 
 void maple_port_cfg(uint16_t mask) {
     gpio_config_t io_conf = {0};

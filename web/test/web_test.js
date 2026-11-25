@@ -93,6 +93,10 @@ async function open(browser, server, url, opts) {
         const info = await page.textContent('#deviceInfo');
         check(/tap buttons, game id, Joy-Con motion/.test(info), 'the device card shows the features: ' + info);
         check(await page.evaluate(() => window.__requests) === 1, 'one request for a device');
+        await page.click('#btnPortCheck');
+        await page.waitForFunction(() => !document.getElementById('portCheckOut').hidden, null, { timeout: 10000 });
+        const pc = await page.textContent('#portCheckOut');
+        check(pc === 'iBlue port check 1\nport D: adapter quiet, sense GPIO33=0 (plugged)\n'.repeat(3), 'the port check report is read whole: ' + JSON.stringify(pc.slice(0, 60)));
         await go(page, 'buttons');
         await page.waitForSelector('#gesture0', { state: 'visible' });
         check(await page.inputValue('#gesture0') === '1' && await page.inputValue('#gesture1') === '3' && await page.inputValue('#gesture2') === '0',

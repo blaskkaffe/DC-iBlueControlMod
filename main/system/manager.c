@@ -125,6 +125,13 @@ static uint8_t power_off_pin = POWER_OFF_PIN;
 static uint8_t led_init_cnt = 1;
 #define PORT_STATE_UNSET 0xFFFF /* no port set applied yet: the next wired_port_hdl() applies one, even an empty one */
 static uint16_t port_state = PORT_STATE_UNSET;
+
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+/* For the port check (iblue_portcheck.c) */
+uint16_t sys_mgr_port_state(void) {
+    return port_state;
+}
+#endif
 static RingbufHandle_t cmd_q_hdl = NULL;
 static uint32_t chip_package = EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6;
 static bool factory_reset = false;
@@ -163,6 +170,16 @@ static inline uint32_t sense_port_is_empty(uint32_t index) {
     return 1;
 #endif
 }
+
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+uint8_t sys_mgr_sense_pin(uint32_t index) {
+    return sense_list[index];
+}
+
+uint32_t sys_mgr_sense_empty(uint32_t index) {
+    return sense_port_is_empty(index);
+}
+#endif
 
 static inline void set_power_on(uint32_t state) {
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED

@@ -25,6 +25,7 @@ Order of the day: **organise and restructure first** (one branch, one place for 
 - **Wanted next for motion** (checked 2026-11-10, nothing written): (1) motion keys in the DC API (`motion.*`, taking a pose), today only the web page can calibrate; (2) calibration by targets: point at each of the game's six positions instead of the four poses; needs the stick values the game expects, to be measured in the game; (3) Wii Remote: read the accelerometer (height and shake work; left / right needs MotionPlus or the sensor bar; a Nunchuk is the second maraca); (4) light gun: see `docs/lightgun.md`.
 
 ## Fixes and checks
+- **Port D**: a physical controller does not work there on any build; run the port check (step 10, `port-check.md`) with a controller in D and in C and compare.
 - **Test**: the pairing pulse on port 1 (step 9: only while the window is open; a single tap, `call pair.start`; paired controllers reconnecting with it closed), the start-up order, game id with openMenu, Racing mode, `brctl`.
 
 - **brctl**: the control channel over the Maple bus (status, config read and write, LED and pairing control, remappable gestures; it is on `development`). (The game id no longer uses a VMU mailbox: it arrives as Maple command 0x21 like on the other adapters, see `led-and-gameid.md`.)

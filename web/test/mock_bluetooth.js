@@ -48,13 +48,14 @@
         }
         if (c === 0x4D) { br.motionResult = (bytes.length > 2 && bytes[1] < 4) ? 0 : 2; if (br.motionResult === 0) { br.poses.push([bytes[1], bytes[2]]); } }
         if (c === 0x4F) { br.motionReset++; br.motionResult = 0; }
+        if (c === 0x52) { if (bytes.length >= 3) { br.pcOff = bytes[1] | (bytes[2] << 8); } else { br.pcRuns = (br.pcRuns || 0) + 1; br.pcOff = 0; } }
     }
 
     function answer() {
         const c = br.lastCmd;
         if (c === 0x07) { return dv(str(br.fwName)); }
         if (br.iblue) {
-            if (c === 0x40) { return dv([0x69, 0x42, 0x4C, 0x55, 1, 21, 3, 0, ACTIONS]); }
+            if (c === 0x40) { return dv([0x69, 0x42, 0x4C, 0x55, 1, 149, 3, 0, ACTIONS]); }
             if (c === 0x4B) {
                 const part = br.motionPart ? br.motion.slice(8) : br.motion.slice(0, 8);
                 const out = [1, br.motionPart];
@@ -64,6 +65,11 @@
             if (c === 0x50) { const o = [4]; br.modes.forEach((m) => o.push(1, m, 3, 0, 0)); return dv(o); }
             if (c === 0x4C || c === 0x4D || c === 0x4F) { return dv([br.motionResult]); }
             if (c === 0x4E) { return dv([2, 0xFF, 3, 10, 20, 17, 8, 1, 7, 246, 0, 255, 6]); } // left: forward + axis, right: shaking
+            if (c === 0x52) {
+                const text = 'iBlue port check 1\nport D: adapter quiet, sense GPIO33=0 (plugged)\n'.repeat(3);
+                const t = Array.from(text).map((ch) => ch.charCodeAt(0));
+                return dv([br.pcRuns ? 2 : 0, t.length & 0xFF, t.length >> 8, ...t.slice(br.pcOff || 0, (br.pcOff || 0) + 17)]);
+            }
             if (c === 0x41) { return dv(br.gestures); }
             if (c === 0x42) { return dv([br.result]); }
         }

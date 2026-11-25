@@ -13,7 +13,7 @@
 | `BlueRetro_iBlueControlMod_step8_3472411.bin` | + step 8 | Stored hardware overrides (settings section "hw") are ignored, as in the vendor firmware: the last port-related difference to it. Port D's pins, sense test and driver code are otherwise the same in vendor, v1.9 and this build. Not tried on hardware |
 | `BlueRetro_iBlueControlMod_step9_95cf304.bin` | + step 9 | **The boot animation is gone** (with its settings, the web config's LEDs page and BLE 0x47-0x4A). The port LEDs work as in the vendor firmware: lit with a controller, and the LED of the port the next controller gets (port 1 while none is connected) **pulses smoothly while pairing is open**. New controllers pair only then: 60 s at start-up and console power-on, after a **single tap** (now the default) or a 6 s hold, or from openMenu with `call pair.start`; paired controllers reconnect at any time. Not tried on hardware |
 
-Each step builds on the one before (branch `stepwise`, from 0c440c8). Try them in order; if one breaks something, the change of that step did it. All nine: built with ESP-IDF 030c995, no warnings, host tests pass, no flash reads from the controller-port interrupt, boot in the ESP32 emulator.
+Each step builds on the one before (branch `stepwise`, from 0c440c8). Try them in order; if one breaks something, the change of that step did it. All of them: built with ESP-IDF 030c995, no warnings, host tests pass, no flash reads from the controller-port interrupt, boot in the ESP32 emulator.
 
 Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) and `BlueRetro_iBlueControlMod_unified_test_0c440c8.bin` (the basics, see above). The 30 s hold does **not** reliably return to the vendor firmware (on this board it only rebooted); the sure way back is the USB-serial header.
 
@@ -25,7 +25,7 @@ Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) an
 | Bluetooth pad pairs and plays | works |
 | Rumble and VMU | work |
 | Two Joy-Cons in maracas mode (Joy-Con motion) | **does not work as it should**: the two Joy-Cons land on separate ports; they should be the left and right maraca of one port |
-| A wired controller on port D | **does not work** (most likely the adapter also answers the console on that port; step 6 did not fix it (2026-11-19); the vendor firmware's port and sense code is the same as ours, cause not found yet) |
+| A wired controller on port D | **does not work** on any build up to step 9 (2026-11-25); the vendor firmware's port and sense code is the same as ours. Step 10 adds a port check that measures the pins on the board (`docs/port-check.md`) |
 | LED gestures, game ID, VMU save during a game ID, Samba de Amigo | not reported yet |
 
 ## What's in it, compared with v1

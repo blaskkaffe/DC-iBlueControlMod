@@ -1,7 +1,7 @@
 // Commands of the iBlueControlMod firmware additions (src: main/bluetooth/att_cfg.c in iBlueControlMod).
 // A command is written to the command characteristic, the answer is read from it right after.
 import { brUuid, cfg_cmd_get_iblue_info, cfg_cmd_get_gestures, cfg_cmd_set_gestures,
-    cfg_cmd_get_motion_cfg, cfg_cmd_set_motion_cfg, cfg_cmd_motion_pose, cfg_cmd_get_motion_status, cfg_cmd_reset_motion_cal, cfg_cmd_get_port_status }
+    cfg_cmd_get_motion_cfg, cfg_cmd_set_motion_cfg, cfg_cmd_motion_pose, cfg_cmd_get_motion_status, cfg_cmd_reset_motion_cal, cfg_cmd_get_port_status, cfg_cmd_port_check }
     from './constants.js';
 import { ibluMotionFields } from './ibluMotion.js';
 
@@ -24,6 +24,7 @@ export async function getIblueInfo(service) {
         gestures: (f & 1) !== 0,
         gameId: (f & 4) !== 0,
         motion: (f & 16) !== 0,
+        portCheck: (f & 128) !== 0,
         gestureCount: v.getUint8(6),
         actionCount: v.getUint8(8),
     };
@@ -109,4 +110,27 @@ export async function getPortStatus(service) {
         out.push({ state: v.getUint8(o), mode: v.getUint8(o + 1), acc: v.getUint8(o + 2), btType: v.getUint8(o + 3), btSub: v.getUint8(o + 4) });
     }
     return out;
+}
+
+/* The port check (command 0x52): what the controller port pins do, as a text report. Starts it, waits for it (about
+ * 1.5 s), then reads the text in pieces of 17 bytes. */
+export async function runPortCheck(service) {
+    await send(service, [cfg_cmd_port_check], false);
+    let v;
+    for (let i = 0; ; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        v = await send(service, [cfg_cmd_port_check, 0, 0], true);
+        if (v.byteLength >= 3 && v.getUint8(0) === 2) { break; }
+        if (i > 40) { throw new Error('the port check did not finish'); }
+    }
+    const total = v.getUint8(1) | (v.getUint8(2) << 8);
+    const bytes = [];
+
+    while (bytes.length < total) {
+        const off = bytes.length;
+        const r = await send(service, [cfg_cmd_port_check, off & 0xFF, off >> 8], true);
+        if (r.byteLength <= 3) { break; }
+        for (let i = 3; i < r.byteLength; i++) { bytes.push(r.getUint8(i)); }
+    }
+    return String.fromCharCode(...bytes);
 }

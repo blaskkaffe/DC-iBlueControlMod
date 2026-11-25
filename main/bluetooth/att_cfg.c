@@ -21,6 +21,7 @@
 #include "system/fs.h"
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
 #include "iblue/iblue_gesture.h"
+#include "iblue/iblue_portcheck.h"
 #include "iblue/iblue_dcapi.h"
 #include "iblue/iblue_motion_ctl.h"
 #endif
@@ -47,11 +48,13 @@
 #define CFG_CMD_RESET_MOTION_CAL 0x4F /* write: forget the learned axes and ranges; then read: result */
 #define CFG_CMD_GET_PORT_STATUS 0x50  /* read: count, then per port: state, dev_mode, acc_mode, bt type, bt subtype */
 /* 0x51 was the DC API over Bluetooth, for DreamPi: dropped with that idea (2026-11-19), stays unused */
+#define CFG_CMD_PORT_CHECK 0x52      /* write [0x52]: run the port check; [0x52, off lo, off hi]: where to read; read: state, length lo, hi, 17 bytes of the report */
 #define IBLUE_FEAT_GESTURES 0x01      /* info features: bit0 tap gestures; bit1 was "profiles": removed, stays unused */
 #define IBLUE_FEAT_GAMEID 0x04        /* bit2 Dreamcast game id from openMenu (Maple command 0x21) */
 /* bit3 and 0x47-0x4A were LED settings (a boot animation): removed, stay unused */
 #define IBLUE_FEAT_MOTION 0x10        /* bit4 Joy-Con motion (maracas) */
 #define IBLUE_FEAT_PORTS 0x20         /* bit5 port status (command 0x50) */
+#define IBLUE_FEAT_PORTCHECK 0x80     /* bit7 port check (command 0x52) */
 /* bit6 was the DC API over Bluetooth (0x51): dropped, stays unused */
 #define IBLUE_RESULT_BAD_ARG 2        /* result of a write command: bad request (0 = ok) */
 #define IBLUE_MOTION_PART_FIELDS 8      /* a read answer is kept to 20 bytes: it fits the shortest ATT payload */
@@ -448,7 +451,7 @@ static uint8_t iblue_result;
 static uint8_t iblue_motion_part;
 
 static void bt_att_cfg_cmd_iblue_info_rsp(uint16_t handle) {
-    uint8_t features = IBLUE_FEAT_GESTURES;
+    uint8_t features = IBLUE_FEAT_GESTURES | IBLUE_FEAT_PORTCHECK;
     uint8_t *d = bt_hci_pkt_tmp.att_data;
 
 #ifdef CONFIG_BLUERETRO_IBLUE_GAMEID
@@ -508,6 +511,18 @@ static void bt_att_cfg_cmd_motion_status_rsp(uint16_t handle) {
 }
 #endif
 
+static uint16_t portcheck_off;
+
+static void bt_att_cfg_cmd_portcheck_rsp(uint16_t handle) {
+    uint8_t *d = bt_hci_pkt_tmp.att_data;
+    uint32_t total = iblue_portcheck_len();
+
+    d[0] = iblue_portcheck_state();
+    d[1] = (uint8_t)(total & 0xFF);
+    d[2] = (uint8_t)(total >> 8);
+    bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 3 + iblue_portcheck_read(portcheck_off, d + 3, 17));
+}
+
 static void bt_att_cfg_cmd_iblue_result_rsp(uint16_t handle) {
     bt_hci_pkt_tmp.att_data[0] = iblue_result;
     bt_att_cmd(handle, BT_ATT_OP_READ_RSP, 1);
@@ -543,6 +558,9 @@ static void bt_att_cfg_cmd_rd_hdlr(uint16_t handle) {
             break;
         case CFG_CMD_GET_GESTURES:
             bt_att_cfg_cmd_gestures_rsp(handle);
+            break;
+        case CFG_CMD_PORT_CHECK:
+            bt_att_cfg_cmd_portcheck_rsp(handle);
             break;
 #ifdef CONFIG_BLUERETRO_IBLUE_MOTION
         case CFG_CMD_GET_MOTION_CFG:
@@ -589,6 +607,15 @@ static void bt_att_cfg_cmd_wr_hdlr(struct bt_dev *device, uint8_t *data, uint32_
 #ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
         case CFG_CMD_SET_GESTURES:
             iblue_result = (len > IBLUE_GEST_MAX && iblue_gesture_set(&data[1])) ? 0 : IBLUE_RESULT_BAD_ARG;
+            break;
+        case CFG_CMD_PORT_CHECK:
+            if (len >= 3) {
+                portcheck_off = (uint16_t)(data[1] | (data[2] << 8));
+            }
+            else {
+                portcheck_off = 0;
+                iblue_portcheck_start();
+            }
             break;
 #ifdef CONFIG_BLUERETRO_IBLUE_MOTION
         case CFG_CMD_GET_MOTION_CFG:
