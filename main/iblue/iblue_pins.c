@@ -4,7 +4,7 @@
 #include "sdkconfig.h"
 #include "soc/soc.h"
 #include "soc/gpio_reg.h"
-#include "soc/gpio_periph.h"
+#include "soc/gpio_sig_map.h"
 #include "soc/io_mux_reg.h"
 #include "soc/rtc_io_reg.h"
 #include "soc/rtc_cntl_reg.h"
@@ -14,19 +14,22 @@
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 
-/* the touch sensor number of a pin, or -1 (touch 8 and 9 are GPIO33 and GPIO32) */
-static int touch_num(uint32_t pin) {
-    static const int8_t map[40] = {
-        [4] = 0, [0] = 1, [2] = 2, [15] = 3, [13] = 4, [12] = 5, [14] = 6, [27] = 7, [33] = 8, [32] = 9,
-    };
+/* All in IRAM / DRAM (linker.lf): maple_init calls it, which runs on the core without the flash cache guard. */
 
-    if (pin >= 40) {
-        return -1;
-    }
-    if (map[pin] == 0 && pin != 4) {
-        return -1;
-    }
-    return map[pin];
+/* the touch sensor number + 1 of a pin, or 0 (touch 8 and 9 are GPIO33 and GPIO32) */
+static const uint8_t touch_map[40] = {
+    [4] = 1, [0] = 2, [2] = 3, [15] = 4, [13] = 5, [12] = 6, [14] = 7, [27] = 8, [33] = 9, [32] = 10,
+};
+
+/* the hold bit of a digital pad in RTC_IO_DIG_PAD_HOLD_REG (ESP-IDF's GPIO_HOLD_MASK for the ESP32) */
+static const uint32_t dig_hold_mask[40] = {
+    [1] = BIT(1), [3] = BIT(0), [5] = BIT(8), [6] = BIT(2), [7] = BIT(3), [8] = BIT(4), [9] = BIT(5), [10] = BIT(6),
+    [11] = BIT(7), [16] = BIT(9), [17] = BIT(10), [18] = BIT(11), [19] = BIT(12), [21] = BIT(14), [22] = BIT(15),
+    [23] = BIT(16),
+};
+
+static int touch_num(uint32_t pin) {
+    return pin < 40 ? (int)touch_map[pin] - 1 : -1;
 }
 
 static void analog_off(uint32_t pin) {
@@ -63,16 +66,17 @@ static void analog_off(uint32_t pin) {
 }
 
 void iblue_pin_clean(uint32_t pin, int input) {
-    uint32_t mux = GPIO_PIN_MUX_REG[pin];
+    uint32_t mux;
 
-    if (pin >= 40 || !mux) {
+    if (pin >= 40 || !GPIO_PIN_MUX_REG_IRAM[pin]) {
         return;
     }
+    mux = GPIO_PIN_MUX_REG_IRAM[pin];
     analog_off(pin);
     /* an RTC pad back to the GPIO matrix, its hold off (gpio.c) */
     gpio_rtc_pad_digital(pin);
     /* a digital pad's hold off */
-    CLEAR_PERI_REG_MASK(RTC_IO_DIG_PAD_HOLD_REG, GPIO_HOLD_MASK[pin]);
+    CLEAR_PERI_REG_MASK(RTC_IO_DIG_PAD_HOLD_REG, dig_hold_mask[pin]);
     /* IO_MUX: GPIO function, no sleep settings, no pulls, input as asked */
     REG_CLR_BIT(mux, SLP_OE | SLP_SEL | SLP_PD | SLP_PU | SLP_IE | FUN_PU | FUN_PD);
     if (input) {

@@ -6,6 +6,7 @@ entries:
     core0_stall (noflash)
     core0_stall_highint_hdl (noflash)
     gpio (noflash)
+    iblue_pins (noflash)
     intr (noflash)
     led (noflash)
     delay (noflash)
