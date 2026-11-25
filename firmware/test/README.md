@@ -27,7 +27,7 @@ Running on hardware: `../BlueRetro_iBlueControlMod_RGB_v1.bin` (fully tested) an
 | Bluetooth pad pairs and plays | works |
 | Rumble and VMU | work |
 | Two Joy-Cons in maracas mode (Joy-Con motion) | **does not work as it should**: the two Joy-Cons land on separate ports; they should be the left and right maraca of one port |
-| A wired controller on port D | **does not work** on any build up to step 9 (2026-11-25); the vendor firmware's port and sense code is the same as ours. Step 10 adds a port check that measures the pins on the board (`docs/port-check.md`); step 11 sets the pins from scratch. A Bluetooth controller works on D (2026-11-25), so the adapter's pins reach the console; next: measure the iBlue's port D socket |
+| A wired controller on port D | **does not work** on any build up to step 9 (2026-11-25); the vendor firmware's port and sense code is the same as ours. Step 10 adds a port check that measures the pins on the board (`docs/port-check.md`); step 11 sets the pins from scratch. A Bluetooth controller works on D (2026-11-25), so the adapter's pins reach the console. **Port check on step 11 (2026-11-25):** the adapter answers on no port, D's pins are input off / output off / pull-up only, RTC side clean (digital, no DAC, touch or hold); the console's polling reaches D's pins like every port, but a pad in D answers nothing (D shows the ~70 edges of an empty port, a pad in A 318) although its sense pin reads plugged. So the pad gets power and ground but not the data lines: the iBlue's port D socket, pins 1 and 5, or their traces. Not a firmware fault |
 | LED gestures, game ID, VMU save during a game ID, Samba de Amigo | not reported yet |
 
 ## What's in it, compared with v1

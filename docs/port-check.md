@@ -26,3 +26,7 @@ What to look for on port D compared with C: `oe1` on a quiet port, an RTC pad re
 The pins, their chip defaults and what the firmware sets: `port-pins.md`.
 
 **Not tried on hardware** (step 10).
+
+## Result on the owner's board (step 11, 2026-11-25)
+
+Wired pads in A and D, no Bluetooth controller: the adapter answers on no port; every Maple pin is input off, output off, plain GPIO output, internal pull-up only; GPIO26's RTC pad register `88000000` (drive 2, pull-up; digital, no DAC, no hold), GPIO27's `4a000000` (drive 2, pull-up; digital, touch off). The console's polling reaches all ports' pins (64 to 84 edges in 200 ms on an empty port). The pad in A answers (318 edges); the pad in D does not (68 / 72, as an empty port), while D's sense reads plugged (held low). The pad gets power, ground and sense on D, but not the data lines: the break is between the iBlue's port D socket pins 1 / 5 and the point where the console's lines and GPIO26 / 27 meet.
