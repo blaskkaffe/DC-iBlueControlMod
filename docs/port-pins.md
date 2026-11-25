@@ -31,3 +31,21 @@ A port the adapter does not answer on loads each data line with one ~45 kΩ pull
 ## Releasing a port (step 12)
 
 The system manager applies a new port set only while the memory card has nothing waiting to be stored (`mc_get_state()`), as upstream BlueRetro does; if storing keeps failing it would wait for ever, and a Bluetooth controller would keep answering on a port a physical controller was plugged into. From step 12 a port whose sense input says a physical controller is there is let go of at once, card busy or not; the rest of the update still waits.
+
+## Checked against the vendor firmware running (2026-11-26)
+
+The vendor firmware was run in the ESP32 emulator (QEMU) with its Bluetooth start-up patched out, so it ran on into its system manager, and every register write to GPIO, IO_MUX and RTC_IO was logged; the same for this firmware. Both print and set the same pin configuration:
+
+| Pins | Vendor firmware | This firmware |
+|---|---|---|
+| Maple A-D: 21/22, 3/5, 18/23, 26/27 | input off, output off, pull-up, no interrupt (no port claimed at start) | the same |
+| Sense 36, 35, 32, 33 | input, no pulls | the same |
+| Port LEDs 15, 4, 2, 12 | output | the same |
+| GPIO16 (button) | input, pull-up | the same |
+| GPIO39 (power sense / internal flag) | input | the same |
+| GPIO17 | output, low | the same |
+| GPIO13 / GPIO14 / GPIO25 | POWER_ON high, RESET open drain, status LED PWM on 14 | the RGB LED (B / G / R) |
+
+The vendor's own tables, read from its binary, are the same as this firmware's: `gpio_pin` = {21, 22}, {3, 5}, {18, 23}, {26, 27} (pin 0 first: GPIO26 carries port D's interrupt, GPIO27 is the second line), `maple0_to_maple1` maps 26 to 27, `pin_to_port` maps 26 and 27 to port D. No swapped variant exists in the binary. A Bluetooth controller works on port D, which also shows the two lines are the right way round (the console would not understand the adapter otherwise); a physical controller's signals do not go through the ESP32 at all.
+
+The firmware reports "HW1" on the web config because blueretro.io decides HW1 / HW2 from the text `hw2` in the version or name, and the vendor's version ("1", project "BlueRetro") has none: keeping it out is what lets blueretro.io update the vendor firmware to this one. The build is the HW2 code (`CONFIG_BLUERETRO_HW2=y`, `CONFIG_BLUERETRO_HW_IBLUECONTROLMOD=y`); the sense inputs are the ESP32's GPIO36 / 35 / 32 / 33, no separate circuit.
