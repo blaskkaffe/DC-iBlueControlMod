@@ -17,6 +17,9 @@
 #include "system/manager.h"
 #include "wired/maple.h"
 #include "adapter/config.h"
+#include "adapter/adapter.h"
+#include "adapter/memory_card.h"
+#include "bluetooth/host.h"
 #include "iblue/iblue_portcheck.h"
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
@@ -135,8 +138,26 @@ static void check_task(void *arg) {
         tx[p] = maple_diag_tx[p];
         ab[p] = maple_diag_abort[p];
     }
-    add("iBlue port check 1, up %us\n", (unsigned)(esp_timer_get_time() / 1000000));
-    add("answers on: %04x (bit0=A); ports %u\n", (unsigned)claimed, (unsigned)hw_config.port_cnt);
+    add("iBlue port check 2, up %us\n", (unsigned)(esp_timer_get_time() / 1000000));
+    {
+        uint16_t want;
+        uint32_t held, updates;
+
+        sys_mgr_port_diag(&want, &held, &updates);
+        add("answers on: %04x (bit0=A); wants %04x; updates %u, held back %u, card busy %x; hotplug %u; ports %u\n",
+            (unsigned)claimed, (unsigned)want, (unsigned)updates, (unsigned)held, (unsigned)mc_get_state(),
+            (unsigned)hw_config.hotplug, (unsigned)hw_config.port_cnt);
+    }
+    for (uint32_t i = 0; i < BT_MAX_DEV; i++) {
+        struct bt_dev *device = NULL;
+
+        bt_host_get_dev_from_id((uint8_t)i, &device);
+        if (device && atomic_test_bit(&device->flags, BT_DEV_DEVICE_FOUND)) {
+            add("bt %u: port %ld%s, maps to %04x\n", (unsigned)i, (long)device->ids.out_idx,
+                atomic_test_bit(&device->flags, BT_DEV_HID_INIT_DONE) ? " ready" : " connecting",
+                (unsigned)adapter_get_out_mask((uint8_t)i));
+        }
+    }
 
     for (uint32_t p = 0; p < PORTS && p < hw_config.port_cnt; p++) {
         uint8_t a, b;
@@ -154,6 +175,8 @@ static void check_task(void *arg) {
         pin_regs("sn", s);
 
         /* the console's traffic on the two Maple pins (input on for a quiet port, as it is reset with input off) */
+        uint32_t tx_before = maple_diag_tx[p], rx_before = maple_diag_rx[p];
+
         mux_a = REG_READ(GPIO_PIN_MUX_REG[a]);
         mux_b = REG_READ(GPIO_PIN_MUX_REG[b]);
         PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[a]);
@@ -193,7 +216,8 @@ static void check_task(void *arg) {
             pa == 0xFF ? "-" : (pa == 2 ? "follow" : (pa == 3 ? "HIGH" : (pa == 0 ? "LOW" : "odd"))),
             pb == 0xFF ? "-" : (pb == 2 ? "follow" : (pb == 3 ? "HIGH" : (pb == 0 ? "LOW" : "odd"))),
             ps == 0xFF ? "-" : (ps == 2 ? "follow" : (ps == 3 ? "HIGH" : (ps == 0 ? "LOW" : "odd"))));
-        add(" maple since boot: rx %u tx %u abort %u\n", (unsigned)rx[p], (unsigned)tx[p], (unsigned)ab[p]);
+        add(" maple since boot: rx %u tx %u abort %u; in the 200ms: rx %u tx %u\n", (unsigned)rx[p], (unsigned)tx[p],
+            (unsigned)ab[p], (unsigned)(maple_diag_rx[p] - rx_before), (unsigned)(maple_diag_tx[p] - tx_before));
     }
     add("gpio en=%08x en1=%08x out=%08x in=%08x in1=%08x\n", (unsigned)GPIO.enable, (unsigned)GPIO.enable1.data,
         (unsigned)GPIO.out, (unsigned)GPIO.in, (unsigned)GPIO.in1.data);

@@ -14,12 +14,14 @@ It only reads: the pins are as before when it ends. Firmware side `main/iblue/ib
 
 | Line | Meaning |
 |---|---|
+| `answers on` / `wants` / `updates` / `held back` / `card busy` (from step 12) | the ports the adapter answers on, the ports the manager wants it to answer on, how many port updates it applied, how many waited for the memory card, and the card's blocks still to store. `answers on` and `wants` differ while an update waits |
+| `bt N: port P ready, maps to M` (from step 12) | each Bluetooth controller, the port it is given (4 or more: none, all taken) and the ports its mapping writes to |
 | `ADAPTER ANSWERS HERE` / `adapter quiet` | whether the adapter has the port's Maple pins on (it answers the console there). With a physical controller in the port it must say quiet |
 | `sense GPIOnn=x (plugged/empty)` | the sense pin: 0 = something plugged in (low), 1 = empty |
 | `m0` / `m1` / `sn` lines | the pin's level (`in`), output enable (`oe`, must be 0 on a quiet port), its IO_MUX register, GPIO pin register, output signal selection, and for the RTC pins (GPIO26, 27, 32, 33) the RTC pad register |
 | `traffic 200ms` | edges seen on the two Maple pins in 200 ms (the console polls every port, so a port with a controller shows many) and how much of the time the pin was high |
 | `pulls (down,up)` | a quiet port's pins with the internal pull-down, then pull-up: `follow` = nothing drives the line; `HIGH` / `LOW` = something holds it there |
-| `maple since boot` | frames the adapter's Maple interrupt received on the port, answers it sent, frames it gave up on |
+| `maple since boot` | frames the adapter's Maple interrupt received on the port, answers it sent, frames it gave up on; from step 12 also the same during the 200 ms (answers there = the adapter talks on that port now) |
 
 What to look for on port D compared with C: `oe1` on a quiet port, an RTC pad register with its mux bit set (the pin is then cut off from the digital side), no traffic while C has some, a pin held `LOW`, or answers sent while a controller is plugged in.
 

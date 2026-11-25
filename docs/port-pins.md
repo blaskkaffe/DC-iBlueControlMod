@@ -27,3 +27,7 @@ The reset state only lasts while the chip starts (well under a second): the firm
 Before step 11 the firmware set the GPIO side of the pins but never the RTC side of an RTC pad: it relied on the reset state there. ESP-IDF's own `gpio_config` does set it (`rtc_gpio_deinit`); BlueRetro's IRAM copy of it (`gpio.c`) did not. Step 11 adds that to `gpio_config_iram` and sets the port pins from scratch at start-up, and releases the latches deep sleep sets on the LED pins.
 
 A port the adapter does not answer on loads each data line with one ~45 kΩ pull-up and nothing else, the same on all four ports: that is not enough to stop a controller from working. The Bluetooth test on port D (2026-11-25: a Bluetooth controller works there) shows the adapter's GPIO26 / GPIO27 reach the console. The part of a physical controller's path that test does not cover is the iBlue's own port D socket and its traces to where the adapter's pins join them.
+
+## Releasing a port (step 12)
+
+The system manager applies a new port set only while the memory card has nothing waiting to be stored (`mc_get_state()`), as upstream BlueRetro does; if storing keeps failing it would wait for ever, and a Bluetooth controller would keep answering on a port a physical controller was plugged into. From step 12 a port whose sense input says a physical controller is there is let go of at once, card busy or not; the rest of the update still waits.

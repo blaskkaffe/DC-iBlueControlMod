@@ -35,6 +35,7 @@ void sys_mgr_pair_stop(void);
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /* for the port check: the ports the adapter answers on (0xFFFF before the first update), a port's sense pin and its reading */
 uint16_t sys_mgr_port_state(void);
+void sys_mgr_port_diag(uint16_t *want, uint32_t *held, uint32_t *updates);
 uint8_t sys_mgr_sense_pin(uint32_t index);
 uint32_t sys_mgr_sense_empty(uint32_t index);
 #endif

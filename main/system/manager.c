@@ -129,8 +129,18 @@ static uint16_t port_state = PORT_STATE_UNSET;
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 /* For the port check (iblue_portcheck.c) */
+static uint16_t diag_port_mask;      /* the ports wired_port_hdl() wanted the last time */
+static uint32_t diag_port_held;      /* times an update was held back (memory card busy) */
+static uint32_t diag_port_updates;   /* port updates applied */
+
 uint16_t sys_mgr_port_state(void) {
     return port_state;
+}
+
+void sys_mgr_port_diag(uint16_t *want, uint32_t *held, uint32_t *updates) {
+    *want = diag_port_mask;
+    *held = diag_port_held;
+    *updates = diag_port_updates;
 }
 #endif
 static RingbufHandle_t cmd_q_hdl = NULL;
@@ -546,9 +556,12 @@ static void wired_port_hdl(void) {
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
     /* A physical controller always has its port: never answer the console there, also not for a port that a Bluetooth pad's
      * mapping points at (adapter_get_out_mask() above does not look at the sense inputs). */
+    uint16_t wired_ports = 0;
+
     for (uint32_t p = 0; p < hw_config.port_cnt; p++) {
         if (!sense_port_is_empty(p)) {
             port_mask &= ~BIT(p);
+            wired_ports |= BIT(p);
         }
     }
 #endif
@@ -560,10 +573,30 @@ static void wired_port_hdl(void) {
     if (port_state == PORT_STATE_UNSET) {
         update++; /* the first run after start-up or a wired reset: the driver's own start-up claim must be replaced */
     }
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    diag_port_mask = port_mask;
+    if (update && mc_get_state()) {
+        /* The update waits while the memory card has writes to store (it can wait for ever if storing fails), but a port a
+         * physical controller was plugged into is let go of at once: two controllers on one bus is worse than a delayed
+         * update, and the console stops writing to a card that is no longer there. */
+        uint16_t release = (port_state != PORT_STATE_UNSET) ? (port_state & wired_ports) : 0;
+
+        diag_port_held++;
+        if (release) {
+            printf("# %s: Release wired ports %04X while the card is busy\n", __FUNCTION__, release);
+            port_state &= ~release;
+            wired_bare_port_cfg(port_state);
+            diag_port_updates++;
+        }
+    }
+#endif
     if (update && !mc_get_state()) {
         printf("# %s: Update ports state: %04X\n", __FUNCTION__, port_mask);
         wired_bare_port_cfg(port_mask);
         port_state = port_mask;
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+        diag_port_updates++;
+#endif
         if (hw_config.ports_sense_p3_p4_as_output) {
             /* Toggle Wii classic sense line to force ctrl reinit */
             set_sense_out(SENSE_P3_PIN, 0);
