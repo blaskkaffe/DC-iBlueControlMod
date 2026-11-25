@@ -23,4 +23,6 @@ It only reads: the pins are as before when it ends. Firmware side `main/iblue/ib
 
 What to look for on port D compared with C: `oe1` on a quiet port, an RTC pad register with its mux bit set (the pin is then cut off from the digital side), no traffic while C has some, a pin held `LOW`, or answers sent while a controller is plugged in.
 
+The pins, their chip defaults and what the firmware sets: `port-pins.md`.
+
 **Not tried on hardware** (step 10).

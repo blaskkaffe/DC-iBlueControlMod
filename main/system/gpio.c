@@ -20,12 +20,18 @@
 #include "esp_bit_defs.h"
 #include "hal/gpio_ll.h"
 #include "soc/rtc_io_periph.h"
+#include "soc/rtc_cntl_reg.h"
 #include "gpio.h"
 
 typedef struct {
     uint32_t reg;       /*!< Register of RTC pad, or 0 if not an RTC GPIO */
     uint32_t pullup;    /*!< Mask of pullup enable */
     uint32_t pulldown;  /*!< Mask of pulldown enable */
+    uint32_t mux;       /*!< Mask of the RTC mux select (set: the pad is the RTC's, cut off from the GPIO matrix) */
+    uint32_t ie;        /*!< Mask of the RTC side input enable */
+    uint32_t slp;       /*!< Masks of the sleep select and sleep input enable */
+    uint32_t hold;      /*!< Mask of the pad hold */
+    uint32_t hold_force;/*!< Mask of the pad's force hold in RTC_CNTL_HOLD_FORCE_REG */
 } rtc_io_desc_lite_t;
 
 const int rtc_io_num_map_iram[SOC_GPIO_PIN_COUNT] = {
@@ -72,25 +78,25 @@ const int rtc_io_num_map_iram[SOC_GPIO_PIN_COUNT] = {
 };
 
 const rtc_io_desc_lite_t rtc_io_desc_iram[SOC_RTCIO_PIN_COUNT] = {
-    /*REG                     Pullup                   Pulldown */
-    {RTC_IO_SENSOR_PADS_REG,  0,                       0,                       }, //36
-    {RTC_IO_SENSOR_PADS_REG,  0,                       0,                       }, //37
-    {RTC_IO_SENSOR_PADS_REG,  0,                       0,                       }, //38
-    {RTC_IO_SENSOR_PADS_REG,  0,                       0,                       }, //39
-    {RTC_IO_ADC_PAD_REG,      0,                       0,                       }, //34
-    {RTC_IO_ADC_PAD_REG,      0,                       0,                       }, //35
-    {RTC_IO_PAD_DAC1_REG,     RTC_IO_PDAC1_RUE_M,      RTC_IO_PDAC1_RDE_M,      }, //25
-    {RTC_IO_PAD_DAC2_REG,     RTC_IO_PDAC2_RUE_M,      RTC_IO_PDAC2_RDE_M,      }, //26
-    {RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32N_RUE_M,       RTC_IO_X32N_RDE_M,       }, //33
-    {RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32P_RUE_M,       RTC_IO_X32P_RDE_M,       }, //32
-    {RTC_IO_TOUCH_PAD0_REG,   RTC_IO_TOUCH_PAD0_RUE_M, RTC_IO_TOUCH_PAD0_RDE_M, }, // 4
-    {RTC_IO_TOUCH_PAD1_REG,   RTC_IO_TOUCH_PAD1_RUE_M, RTC_IO_TOUCH_PAD1_RDE_M, }, // 0
-    {RTC_IO_TOUCH_PAD2_REG,   RTC_IO_TOUCH_PAD2_RUE_M, RTC_IO_TOUCH_PAD2_RDE_M, }, // 2
-    {RTC_IO_TOUCH_PAD3_REG,   RTC_IO_TOUCH_PAD3_RUE_M, RTC_IO_TOUCH_PAD3_RDE_M, }, //15
-    {RTC_IO_TOUCH_PAD4_REG,   RTC_IO_TOUCH_PAD4_RUE_M, RTC_IO_TOUCH_PAD4_RDE_M, }, //13
-    {RTC_IO_TOUCH_PAD5_REG,   RTC_IO_TOUCH_PAD5_RUE_M, RTC_IO_TOUCH_PAD5_RDE_M, }, //12
-    {RTC_IO_TOUCH_PAD6_REG,   RTC_IO_TOUCH_PAD6_RUE_M, RTC_IO_TOUCH_PAD6_RDE_M, }, //14
-    {RTC_IO_TOUCH_PAD7_REG,   RTC_IO_TOUCH_PAD7_RUE_M, RTC_IO_TOUCH_PAD7_RDE_M, }, //27
+    /* (the same masks as ESP-IDF's rtc_io_desc for the ESP32) */
+    {RTC_IO_SENSOR_PADS_REG, 0, 0, RTC_IO_SENSE1_MUX_SEL_M, RTC_IO_SENSE1_FUN_IE_M, RTC_IO_SENSE1_SLP_SEL_M | RTC_IO_SENSE1_SLP_IE_M, RTC_IO_SENSE1_HOLD_M, RTC_CNTL_SENSE1_HOLD_FORCE_M}, //36
+    {RTC_IO_SENSOR_PADS_REG, 0, 0, RTC_IO_SENSE2_MUX_SEL_M, RTC_IO_SENSE2_FUN_IE_M, RTC_IO_SENSE2_SLP_SEL_M | RTC_IO_SENSE2_SLP_IE_M, RTC_IO_SENSE2_HOLD_M, RTC_CNTL_SENSE2_HOLD_FORCE_M}, //37
+    {RTC_IO_SENSOR_PADS_REG, 0, 0, RTC_IO_SENSE3_MUX_SEL_M, RTC_IO_SENSE3_FUN_IE_M, RTC_IO_SENSE3_SLP_SEL_M | RTC_IO_SENSE3_SLP_IE_M, RTC_IO_SENSE3_HOLD_M, RTC_CNTL_SENSE3_HOLD_FORCE_M}, //38
+    {RTC_IO_SENSOR_PADS_REG, 0, 0, RTC_IO_SENSE4_MUX_SEL_M, RTC_IO_SENSE4_FUN_IE_M, RTC_IO_SENSE4_SLP_SEL_M | RTC_IO_SENSE4_SLP_IE_M, RTC_IO_SENSE4_HOLD_M, RTC_CNTL_SENSE4_HOLD_FORCE_M}, //39
+    {RTC_IO_ADC_PAD_REG, 0, 0, RTC_IO_ADC1_MUX_SEL_M, RTC_IO_ADC1_FUN_IE_M, RTC_IO_ADC1_SLP_SEL_M | RTC_IO_ADC1_SLP_IE_M, RTC_IO_ADC1_HOLD_M, RTC_CNTL_ADC1_HOLD_FORCE_M}, //34
+    {RTC_IO_ADC_PAD_REG, 0, 0, RTC_IO_ADC2_MUX_SEL_M, RTC_IO_ADC2_FUN_IE_M, RTC_IO_ADC2_SLP_SEL_M | RTC_IO_ADC2_SLP_IE_M, RTC_IO_ADC2_HOLD_M, RTC_CNTL_ADC2_HOLD_FORCE_M}, //35
+    {RTC_IO_PAD_DAC1_REG, RTC_IO_PDAC1_RUE_M, RTC_IO_PDAC1_RDE_M, RTC_IO_PDAC1_MUX_SEL_M, RTC_IO_PDAC1_FUN_IE_M, RTC_IO_PDAC1_SLP_SEL_M | RTC_IO_PDAC1_SLP_IE_M, RTC_IO_PDAC1_HOLD_M, RTC_CNTL_PDAC1_HOLD_FORCE_M}, //25
+    {RTC_IO_PAD_DAC2_REG, RTC_IO_PDAC2_RUE_M, RTC_IO_PDAC2_RDE_M, RTC_IO_PDAC2_MUX_SEL_M, RTC_IO_PDAC2_FUN_IE_M, RTC_IO_PDAC2_SLP_SEL_M | RTC_IO_PDAC2_SLP_IE_M, RTC_IO_PDAC2_HOLD_M, RTC_CNTL_PDAC2_HOLD_FORCE_M}, //26
+    {RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32N_RUE_M, RTC_IO_X32N_RDE_M, RTC_IO_X32N_MUX_SEL_M, RTC_IO_X32N_FUN_IE_M, RTC_IO_X32N_SLP_SEL_M | RTC_IO_X32N_SLP_IE_M, RTC_IO_X32N_HOLD_M, RTC_CNTL_X32N_HOLD_FORCE_M}, //33
+    {RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32P_RUE_M, RTC_IO_X32P_RDE_M, RTC_IO_X32P_MUX_SEL_M, RTC_IO_X32P_FUN_IE_M, RTC_IO_X32P_SLP_SEL_M | RTC_IO_X32P_SLP_IE_M, RTC_IO_X32P_HOLD_M, RTC_CNTL_X32P_HOLD_FORCE_M}, //32
+    {RTC_IO_TOUCH_PAD0_REG, RTC_IO_TOUCH_PAD0_RUE_M, RTC_IO_TOUCH_PAD0_RDE_M, RTC_IO_TOUCH_PAD0_MUX_SEL_M, RTC_IO_TOUCH_PAD0_FUN_IE_M, RTC_IO_TOUCH_PAD0_SLP_SEL_M | RTC_IO_TOUCH_PAD0_SLP_IE_M, RTC_IO_TOUCH_PAD0_HOLD_M, RTC_CNTL_TOUCH_PAD0_HOLD_FORCE_M}, // 4
+    {RTC_IO_TOUCH_PAD1_REG, RTC_IO_TOUCH_PAD1_RUE_M, RTC_IO_TOUCH_PAD1_RDE_M, RTC_IO_TOUCH_PAD1_MUX_SEL_M, RTC_IO_TOUCH_PAD1_FUN_IE_M, RTC_IO_TOUCH_PAD1_SLP_SEL_M | RTC_IO_TOUCH_PAD1_SLP_IE_M, RTC_IO_TOUCH_PAD1_HOLD_M, RTC_CNTL_TOUCH_PAD1_HOLD_FORCE_M}, // 0
+    {RTC_IO_TOUCH_PAD2_REG, RTC_IO_TOUCH_PAD2_RUE_M, RTC_IO_TOUCH_PAD2_RDE_M, RTC_IO_TOUCH_PAD2_MUX_SEL_M, RTC_IO_TOUCH_PAD2_FUN_IE_M, RTC_IO_TOUCH_PAD2_SLP_SEL_M | RTC_IO_TOUCH_PAD2_SLP_IE_M, RTC_IO_TOUCH_PAD2_HOLD_M, RTC_CNTL_TOUCH_PAD2_HOLD_FORCE_M}, // 2
+    {RTC_IO_TOUCH_PAD3_REG, RTC_IO_TOUCH_PAD3_RUE_M, RTC_IO_TOUCH_PAD3_RDE_M, RTC_IO_TOUCH_PAD3_MUX_SEL_M, RTC_IO_TOUCH_PAD3_FUN_IE_M, RTC_IO_TOUCH_PAD3_SLP_SEL_M | RTC_IO_TOUCH_PAD3_SLP_IE_M, RTC_IO_TOUCH_PAD3_HOLD_M, RTC_CNTL_TOUCH_PAD3_HOLD_FORCE_M}, //15
+    {RTC_IO_TOUCH_PAD4_REG, RTC_IO_TOUCH_PAD4_RUE_M, RTC_IO_TOUCH_PAD4_RDE_M, RTC_IO_TOUCH_PAD4_MUX_SEL_M, RTC_IO_TOUCH_PAD4_FUN_IE_M, RTC_IO_TOUCH_PAD4_SLP_SEL_M | RTC_IO_TOUCH_PAD4_SLP_IE_M, RTC_IO_TOUCH_PAD4_HOLD_M, RTC_CNTL_TOUCH_PAD4_HOLD_FORCE_M}, //13
+    {RTC_IO_TOUCH_PAD5_REG, RTC_IO_TOUCH_PAD5_RUE_M, RTC_IO_TOUCH_PAD5_RDE_M, RTC_IO_TOUCH_PAD5_MUX_SEL_M, RTC_IO_TOUCH_PAD5_FUN_IE_M, RTC_IO_TOUCH_PAD5_SLP_SEL_M | RTC_IO_TOUCH_PAD5_SLP_IE_M, RTC_IO_TOUCH_PAD5_HOLD_M, RTC_CNTL_TOUCH_PAD5_HOLD_FORCE_M}, //12
+    {RTC_IO_TOUCH_PAD6_REG, RTC_IO_TOUCH_PAD6_RUE_M, RTC_IO_TOUCH_PAD6_RDE_M, RTC_IO_TOUCH_PAD6_MUX_SEL_M, RTC_IO_TOUCH_PAD6_FUN_IE_M, RTC_IO_TOUCH_PAD6_SLP_SEL_M | RTC_IO_TOUCH_PAD6_SLP_IE_M, RTC_IO_TOUCH_PAD6_HOLD_M, RTC_CNTL_TOUCH_PAD6_HOLD_FORCE_M}, //14
+    {RTC_IO_TOUCH_PAD7_REG, RTC_IO_TOUCH_PAD7_RUE_M, RTC_IO_TOUCH_PAD7_RDE_M, RTC_IO_TOUCH_PAD7_MUX_SEL_M, RTC_IO_TOUCH_PAD7_FUN_IE_M, RTC_IO_TOUCH_PAD7_SLP_SEL_M | RTC_IO_TOUCH_PAD7_SLP_IE_M, RTC_IO_TOUCH_PAD7_HOLD_M, RTC_CNTL_TOUCH_PAD7_HOLD_FORCE_M}, //27
 };
 
 const uint32_t GPIO_PIN_MUX_REG_IRAM[SOC_GPIO_PIN_COUNT] = {
@@ -215,6 +221,18 @@ static int32_t gpio_pulldown_dis_iram(gpio_num_t gpio_num)
     }
 
     return ESP_OK;
+}
+
+void gpio_rtc_pad_digital(uint32_t gpio_num)
+{
+    const rtc_io_desc_lite_t *d;
+
+    if (!rtc_gpio_is_valid_gpio(gpio_num)) {
+        return;
+    }
+    d = &rtc_io_desc_iram[rtc_io_num_map_iram[gpio_num]];
+    CLEAR_PERI_REG_MASK(RTC_CNTL_HOLD_FORCE_REG, d->hold_force);
+    CLEAR_PERI_REG_MASK(d->reg, d->hold | d->mux | d->ie | d->slp);
 }
 
 int32_t gpio_set_level_iram(gpio_num_t gpio_num, uint32_t level)
@@ -369,6 +387,12 @@ int32_t gpio_config_iram(const gpio_config_t *pGPIOConfig)
             }
 
             PIN_FUNC_SELECT(io_reg, PIN_FUNC_GPIO); /*function number 2 is GPIO_FUNC for each pin */
+            if (rtc_gpio_is_valid_gpio(io_num)) {
+                /* An RTC pad: give it to the GPIO matrix and release any hold, as ESP-IDF's gpio_config does
+                 * (rtc_gpio_deinit). The RTC registers survive a software reset (restart, OTA update), so a
+                 * state an earlier firmware left must not be assumed away. */
+                gpio_rtc_pad_digital(io_num);
+            }
         }
 
         io_num++;

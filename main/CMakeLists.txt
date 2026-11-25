@@ -76,6 +76,7 @@ set(srcs
     "iblue/iblue_dcapi_cfg.c"
     "iblue/iblue_mapcfg.c"
     "iblue/iblue_portcheck.c"
+    "iblue/iblue_pins.c"
     "system/bare_metal_app_cpu.c"
     "system/core0_stall.c"
     "system/core0_stall_highint_hdl.S"

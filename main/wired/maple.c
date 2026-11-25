@@ -20,6 +20,9 @@
 #include "iblue/iblue_gameid.h"
 #include "iblue/iblue_dcapi.h"
 #include "maple.h"
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+#include "iblue/iblue_pins.h"
+#endif
 #include "maple_frame.h"
 
 #define ID_CTRL    0x00000001
@@ -844,6 +847,13 @@ void maple_init(uint32_t package)
 #endif
 #ifndef CONFIG_BLUERETRO_WIRED_TRACE
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    /* Every Maple pin from a known state, whatever ran before (see iblue_pins.h): port D's pins are RTC pads */
+    iblue_pins_release_holds();
+    for (uint32_t i = 0; i < port_cnt; i++) {
+        for (uint32_t j = 0; j < ARRAY_SIZE(gpio_pin[0]); j++) {
+            iblue_pin_clean(gpio_pin[i][j], 0);
+        }
+    }
     /* No port until the system manager has looked at the sense inputs and the Bluetooth pads (wired_port_hdl): claiming all
      * four here answered the console on every port, so a physical controller collided with the adapter until a pad connected */
     maple_port_cfg(0x0);

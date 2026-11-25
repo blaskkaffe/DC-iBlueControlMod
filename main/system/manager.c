@@ -33,6 +33,7 @@
 #include <esp_timer.h>
 #include "iblue/iblue_led.h"
 #include "iblue/iblue_gesture.h"
+#include "iblue/iblue_pins.h"
 #include "iblue/iblue_gameid_ctl.h"
 #include "iblue/iblue_motion_ctl.h"
 #include "iblue/iblue_tap.h"
@@ -892,6 +893,21 @@ void sys_mgr_cmd(uint8_t cmd) {
 void sys_mgr_iblue_early(void) {
     int32_t ret;
 
+    /* Deep sleep latches the LED pins (sys_mgr_deep_sleep): released here, as a wake from it is a reset that keeps the
+     * latches, and nothing else would release them */
+    iblue_pins_release_holds();
+    {
+        static const uint8_t led_pins[] = {LED_P1_PIN, LED_P2_PIN, LED_P3_PIN, LED_P4_PIN, IBLUE_AUX_PIN
+#ifdef CONFIG_BLUERETRO_IBLUE_RGB_LED
+            , CONFIG_BLUERETRO_IBLUE_LED_R_GPIO, CONFIG_BLUERETRO_IBLUE_LED_G_GPIO, CONFIG_BLUERETRO_IBLUE_LED_B_GPIO
+#endif
+        };
+
+        for (uint32_t i = 0; i < sizeof(led_pins); i++) {
+            gpio_hold_dis(led_pins[i]);
+        }
+    }
+
     ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
@@ -1022,6 +1038,10 @@ void sys_mgr_init(uint32_t package) {
 
 #ifdef CONFIG_BLUERETRO_HW2
     for (uint32_t i = 0; i < hw_config.port_cnt; i++) {
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+        /* from a known state (iblue_pins.h): the sense pins of C and D are the 32 kHz crystal pads */
+        iblue_pin_clean(sense_list[i], 1);
+#endif
         io_conf.pin_bit_mask = 1ULL << sense_list[i];
         gpio_config(&io_conf);
     }

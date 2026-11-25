@@ -28,5 +28,7 @@ int32_t gpio_set_pull_mode_iram(gpio_num_t gpio_num, gpio_pull_mode_t pull);
 int32_t gpio_set_direction_iram(gpio_num_t gpio_num, gpio_mode_t mode);
 int32_t gpio_config_iram(const gpio_config_t *pGPIOConfig);
 int32_t gpio_reset_iram(gpio_num_t gpio_num);
+/* An RTC pad (GPIO0, 2, 4, 12-15, 25-27, 32-39) to the digital side: RTC mux off, hold off; no effect on other pins */
+void gpio_rtc_pad_digital(uint32_t gpio_num);
 
 #endif /* _GPIO_H_ */
