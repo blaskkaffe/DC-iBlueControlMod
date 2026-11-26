@@ -13,7 +13,7 @@ file as the one in [VDfreesince1983/Ibluecontrolmod-Factory-Firmware](https://gi
   - darthcloud (the BlueRetro author) compared GPIO init logs and got this pin mapping: **0→16, 2→15, 12→2, 15→12, 16→17**.
     The disassembly here confirms that mapping independently. It also finds three changes the log comparison missed:
     the error LED moving from 17 to 14, sense P1/P2 being swapped, and the GPIO13/14/25 behaviour.
-  - zeus86 found the port shields are tied to ground, so wired/wireless auto-switching does not work as it does on official HW2.
+  - zeus86 reported the port shields are tied to ground on his (GameCube) board. **That does not hold for the Dreamcast board:** its firmware reads a sense input per port (GPIO36 / 35 / 32 / 33, in the vendor's machine code and in this fork), and the owner's board moves a Bluetooth controller off a port when a wired one is plugged in (2026-11-25, port check: the sense pins read plugged / empty).
   - One user (bdavez) bricked a unit by flashing the HW1 build. They recovered it by OTA-flashing the vendor Dreamcast firmware through blueretro.io,
     then running a factory reset from the vendor app. Their reset/pair button still didn't work afterwards.
   - The vendor firmware can be OTA-flashed through blueretro.io. The vendor's own update tool reportedly failed.
