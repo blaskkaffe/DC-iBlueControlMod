@@ -25,7 +25,7 @@
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
 
 #define PORTS 4
-#define REPORT_MAX 2400
+#define REPORT_MAX 4096
 #define SAMPLE_US 200000
 
 static char report[REPORT_MAX];
@@ -127,6 +127,71 @@ static uint32_t pull_test(uint32_t pin) {
     return r;
 }
 
+static const char *cmd_name(uint8_t c) {
+    switch (c) {
+        case 0x01: return "info?";
+        case 0x02: return "extinfo?";
+        case 0x03: return "reset";
+        case 0x05: return "info";
+        case 0x06: return "extinfo";
+        case 0x07: return "ack";
+        case 0x08: return "data";
+        case 0x09: return "cond?";
+        case 0x0A: return "meminfo?";
+        case 0x0B: return "read";
+        case 0x0C: return "write";
+        case 0x0E: return "setcond";
+        case 0xFC: return "resend";
+        case 0xFD: return "unkcmd";
+        case 0xFE: return "unkfn";
+        case 0xFF: return "none";
+        default: return "?";
+    }
+}
+
+/* The sniffer: listen on the ports the adapter does not answer on for SNIFF_MS, never send; then per port the frames
+ * from the console and from a controller, and the last frames of each in the ring. */
+#define SNIFF_MS 500
+static void sniff(uint16_t claimed) {
+    uint32_t host0[PORTS], dev0[PORTS], ab0[PORTS], start, end;
+    uint16_t listen = (claimed == 0xFFFF) ? 0xF : (uint16_t)(~claimed & 0xF);
+
+    for (uint32_t p = 0; p < PORTS; p++) {
+        host0[p] = maple_sniff_host[p];
+        dev0[p] = maple_sniff_dev[p];
+        ab0[p] = maple_diag_abort[p];
+    }
+    start = maple_sniff_cnt;
+    maple_sniff(listen);
+    vTaskDelay(pdMS_TO_TICKS(SNIFF_MS));
+    maple_sniff(0);
+    end = maple_sniff_cnt;
+    add("sniff %ums on %04x (listen only):\n", (unsigned)SNIFF_MS, (unsigned)listen);
+    for (uint32_t p = 0; p < PORTS && p < hw_config.port_cnt; p++) {
+        uint32_t shown = 0;
+
+        if (!(listen & BIT(p))) {
+            add(" %c: not listened (the adapter answers here)\n", 'A' + (int)p);
+            continue;
+        }
+        add(" %c: console %u frames, controller %u frames, broken %u\n", 'A' + (int)p,
+            (unsigned)(maple_sniff_host[p] - host0[p]), (unsigned)(maple_sniff_dev[p] - dev0[p]),
+            (unsigned)(maple_diag_abort[p] - ab0[p]));
+        /* the last frames of this port, newest first */
+        for (uint32_t i = end; i > start && i + MAPLE_SNIFF_MAX > end && shown < 6; i--) {
+            struct maple_sniff_frame *f = &maple_sniff_ring[(i - 1) % MAPLE_SNIFF_MAX];
+
+            if ((f->port & 3) != p) {
+                continue;
+            }
+            add("  %02x>%02x %s(%02x) len %u/%u lost %u bits %u\n", (unsigned)f->sender, (unsigned)f->recipient,
+                cmd_name(f->cmd), (unsigned)f->cmd, (unsigned)f->len, (unsigned)f->hdr_len, (unsigned)(f->port >> 4),
+                (unsigned)f->bits);
+            shown++;
+        }
+    }
+}
+
 static void check_task(void *arg) {
     uint16_t claimed = sys_mgr_port_state();
     uint32_t rx[PORTS], tx[PORTS], ab[PORTS];
@@ -138,7 +203,7 @@ static void check_task(void *arg) {
         tx[p] = maple_diag_tx[p];
         ab[p] = maple_diag_abort[p];
     }
-    add("iBlue port check 2, up %us\n", (unsigned)(esp_timer_get_time() / 1000000));
+    add("iBlue port check 3, up %us\n", (unsigned)(esp_timer_get_time() / 1000000));
     {
         uint16_t want;
         uint32_t held, updates;
@@ -224,6 +289,7 @@ static void check_task(void *arg) {
     add("hold=%08x dighold=%08x touch=%08x dac=%08x\n", (unsigned)REG_READ(RTC_CNTL_HOLD_FORCE_REG),
         (unsigned)REG_READ(RTC_IO_DIG_PAD_HOLD_REG), (unsigned)REG_READ(SENS_SAR_TOUCH_ENABLE_REG),
         (unsigned)REG_READ(SENS_SAR_DAC_CTRL2_REG));
+    sniff(claimed);
     state = IBLUE_PORTCHECK_DONE;
     printf("# iblue port check:\n%s", report);
     vTaskDelete(NULL);

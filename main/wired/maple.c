@@ -148,6 +148,13 @@ static const uint8_t gpio_pin[][2] = {
 DRAM_ATTR volatile uint32_t maple_diag_rx[4];
 DRAM_ATTR volatile uint32_t maple_diag_tx[4];
 DRAM_ATTR volatile uint32_t maple_diag_abort[4];
+DRAM_ATTR struct maple_sniff_frame maple_sniff_ring[MAPLE_SNIFF_MAX];
+DRAM_ATTR volatile uint32_t maple_sniff_cnt;
+DRAM_ATTR volatile uint32_t maple_sniff_host[4];
+DRAM_ATTR volatile uint32_t maple_sniff_dev[4];
+static DRAM_ATTR volatile uint16_t maple_on;      /* the ports the adapter answers on (maple_port_cfg) */
+static DRAM_ATTR volatile uint16_t maple_sniff_on; /* the ports listened to */
+static uint16_t maple_last_mask;
 #endif
 
 static uint8_t pin_to_port[] = {
@@ -454,6 +461,31 @@ maple_end:
             src = pkt.dst;
             dst = pkt.src;
         }
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+        if (!(maple_on & BIT(port))) {
+            /* A port the adapter does not answer on (listened to by the sniffer): log the frame, never answer */
+            uint32_t n = maple_sniff_cnt;
+            struct maple_sniff_frame *f = &maple_sniff_ring[n % MAPLE_SNIFF_MAX];
+
+            GPIO.status_w1tc = maple0;
+            f->ccount = xthal_get_ccount();
+            f->port = (uint8_t)((port & 3) | (bad_frame << 4));
+            f->sender = dst;
+            f->recipient = src;
+            f->cmd = cmd;
+            f->len = len;
+            f->hdr_len = bad_frame ? 0xFF : pkt.len;
+            f->bits = (uint16_t)bit_cnt;
+            maple_sniff_cnt = n + 1;
+            if (dst & 0x3F) {
+                maple_sniff_dev[port & 3]++;
+            }
+            else {
+                maple_sniff_host[port & 3]++;
+            }
+            return 0;
+        }
+#endif
 #ifdef CONFIG_BLUERETRO_IBLUE_VMU_CHECK
         /* checked here, before the buffer is reused for the answer */
         if (cmd == CMD_BLOCK_WRITE) {
@@ -867,6 +899,11 @@ void maple_init(uint32_t package)
 }
 
 #ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+void maple_sniff(uint16_t mask) {
+    maple_sniff_on = mask;
+    maple_port_cfg(maple_last_mask);
+}
+
 void maple_port_pins(uint32_t port, uint8_t *pin0, uint8_t *pin1) {
     *pin0 = gpio_pin[port][0];
     *pin1 = gpio_pin[port][1];
@@ -875,6 +912,13 @@ void maple_port_pins(uint32_t port, uint8_t *pin0, uint8_t *pin1) {
 
 void maple_port_cfg(uint16_t mask) {
     gpio_config_t io_conf = {0};
+#ifdef CONFIG_BLUERETRO_HW_IBLUECONTROLMOD
+    uint16_t listen = maple_sniff_on & ~mask;
+
+    maple_last_mask = mask;
+    maple_on = mask;
+    mask |= listen; /* a listened port's pins are set up like an answered one's, but the interrupt only logs */
+#endif
 
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
